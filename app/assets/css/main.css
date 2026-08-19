@@ -205,4 +205,37 @@
     border-radius: 999px;
     overflow: hidden;
   }
+
+  /*
+    Colonne del listone: una sola definizione, usata dalla intestazione e da
+    ogni riga, cosi le cifre restano incolonnate. Su schermo stretto cadono le
+    colonne accessorie e la riga resta alta una riga sola: e la altezza fissa
+    che rende possibile la finestra virtuale.
+  */
+  .griglia-listone {
+    display: grid;
+    align-items: center;
+    gap: 0 0.5rem;
+    grid-template-columns: 1.6rem minmax(0, 1fr) 1.5rem 3.25rem 8.5rem;
+  }
+
+  @media (min-width: 40rem) {
+    .griglia-listone {
+      grid-template-columns:
+        1.6rem minmax(0, 1fr) 1.5rem 6rem 3.25rem 3.25rem 3rem 3rem
+        3.5rem 3.25rem 11.5rem;
+    }
+  }
+
+  /*
+    Nella finestra virtuale le righe scorrono, quindi la parita di DOM non
+    coincide con quella dei dati: la rigatura arriva da una classe esplicita.
+  */
+  .listone-virtuale .riga-listone:nth-child(even) {
+    background-color: transparent;
+  }
+
+  .riga-listone.riga-alt {
+    background-color: color-mix(in oklab, var(--fb-carta-alt) 60%, transparent);
+  }
 }

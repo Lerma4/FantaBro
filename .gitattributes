@@ -1,0 +1,5 @@
+* text=auto eol=lf
+*.png binary
+*.xlsx binary
+pnpm-lock.yaml -diff
+server/database/migrations/** linguist-generated

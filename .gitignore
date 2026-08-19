@@ -28,3 +28,6 @@ coverage
 
 # meta prompt di orchestrazione (non fa parte del prodotto)
 orchestration.md
+
+# artefatti di build TypeScript
+*.tsbuildinfo

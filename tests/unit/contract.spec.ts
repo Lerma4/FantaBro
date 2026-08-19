@@ -30,9 +30,22 @@ describe('contratto condiviso', () => {
     expect(new Set(ALL_ERROR_CODES).size).toBe(ALL_ERROR_CODES.length)
   })
 
+  /**
+   * Il server restituisce solo codici; i messaggi vivono in i18n. Un codice senza
+   * traduzione arriverebbe all'utente come stringa grezza, quindi va rotto qui.
+   * `errors.<CODE>` dice cosa e successo, `errors.hint.<CODE>` cosa fare (spec 45).
+   */
   it('ha una traduzione italiana per ogni codice errore', () => {
-    const errors = (itMessages as { errors?: Record<string, string> }).errors ?? {}
-    const missing = ALL_ERROR_CODES.filter((code) => !errors[code])
+    const messages: Record<string, unknown> = itMessages.errors
+    const missing = ALL_ERROR_CODES.filter((code) => typeof messages[code] !== 'string')
     expect(missing).toEqual([])
+  })
+
+  it('non ha suggerimenti azionabili orfani, agganciati a codici inesistenti', () => {
+    const hints: Record<string, unknown> = itMessages.errors.hint ?? {}
+    const orphans = Object.keys(hints).filter(
+      (code) => !(ALL_ERROR_CODES as readonly string[]).includes(code)
+    )
+    expect(orphans).toEqual([])
   })
 })

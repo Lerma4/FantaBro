@@ -48,11 +48,18 @@ export default defineNuxtConfig({
 
   nitro: {
     experimental: { asyncContext: true },
+    // Nitro non ha un limite di dimensione del body: `readMultipartFormData` bufferizza
+    // tutto prima che il codice applicativo possa guardare. Il limite duro va quindi
+    // messo davanti (Ingress/reverse proxy, vedi k8s/), e lo import lo ricontrolla a
+    // valle come difesa in profondita.
   },
 
   typescript: {
     strict: true,
     typeCheck: false,
+    // I test dei componenti stanno in tests/component, fuori dalle include generate da Nuxt:
+    // senza questa riga sfuggirebbero a "nuxt typecheck".
+    tsConfig: { include: ['../tests/component/**/*'] },
   },
 
   ui: {

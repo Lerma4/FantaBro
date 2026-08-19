@@ -1,9 +1,13 @@
 import { execSync } from 'node:child_process'
+import { get, type IncomingMessage } from 'node:http'
 import { mkdirSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import ExcelJS from 'exceljs'
-import { describe, expect, it } from 'vitest'
-import { fetch, setup } from '@nuxt/test-utils/e2e'
+import { beforeAll, describe, expect, it } from 'vitest'
+import { fetch, setup, url } from '@nuxt/test-utils/e2e'
+import { withTransaction } from '../../server/utils/db'
+import { publishAuctionChange, type AuctionChangePayload } from '../../server/utils/events'
+import { subscribeToAuction } from '../../server/utils/sse'
 import type { AuctionEventRow, AuctionState, AuctionSummary, PlayerRow } from '#shared/types'
 
 /**
@@ -56,6 +60,8 @@ async function listoneXlsx(): Promise<Buffer> {
   return listoneBuffer
 }
 
+const NEWLINE = String.fromCharCode(10)
+
 let cookie = ''
 let auction: AuctionSummary
 let players: PlayerRow[] = []
@@ -99,6 +105,33 @@ async function uploadListone(
   return call(path, { form })
 }
 
+/** Apre uno stream SSE e accumula i chunk cosi come arrivano dal socket. */
+async function openStream(path: string): Promise<{ response: IncomingMessage; chunks: string[] }> {
+  const chunks: string[] = []
+  const response = await new Promise<IncomingMessage>((resolve, reject) => {
+    const request = get(
+      url(path),
+      { headers: { cookie, accept: 'text/event-stream' } },
+      (incoming) => {
+        incoming.setEncoding('utf8')
+        incoming.on('data', (chunk: string) => chunks.push(chunk))
+        incoming.on('error', () => {})
+        resolve(incoming)
+      }
+    )
+    request.on('error', reject)
+  })
+  return { response, chunks }
+}
+
+/** Attende una condizione invece di scommettere su un ritardo fisso. */
+async function until(ready: () => boolean, timeoutMs: number): Promise<void> {
+  const deadline = Date.now() + timeoutMs
+  while (!ready() && Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, 50))
+  }
+}
+
 /** Listone col filtro di default: solo i giocatori ancora disponibili (spec 17). */
 async function availableNames(): Promise<string[]> {
   const { body } = await call(`/api/auctions/${auction.id}/players`)
@@ -106,13 +139,19 @@ async function availableNames(): Promise<string[]> {
 }
 
 describe.skipIf(!hasDatabase)('flusso d asta end to end', async () => {
-  // La suite si semina da se: i test di integrazione ripuliscono le tabelle, quindi
-  // l'utente ADMIN non si puo dare per esistente. `db:seed` e idempotente.
-  if (hasDatabase) execSync('pnpm db:seed', { stdio: 'pipe' })
-
   // `setup` registra da se i propri hook: va chiamata a livello di describe, non dentro
   // un `beforeAll`, altrimenti `fetch` non conosce l'URL del server di test.
   if (hasDatabase) await setup({ server: true, buildDir: E2E_BUILD_DIR })
+
+  // La suite si semina da se: i test di integrazione ripuliscono le tabelle, quindi
+  // l'utente ADMIN non si puo dare per esistente. `db:seed` e idempotente.
+  //
+  // Va **dopo** `setup`: registrato qui l'hook gira a build finita, mentre seminare in
+  // fase di collect lascia i ~100 secondi della build a disposizione di un'altra suite
+  // per ripulire le tabelle.
+  beforeAll(() => {
+    execSync('pnpm db:seed', { stdio: 'pipe' })
+  }, 60_000)
 
   it('1. rifiuta una route d asta senza sessione', async () => {
     const response = await fetch('/api/auctions', { redirect: 'manual' })
@@ -265,53 +304,170 @@ describe.skipIf(!hasDatabase)('flusso d asta end to end', async () => {
     expect(await availableNames()).toContain('Dimarco')
   })
 
-  it('11. propaga un acquisto ai client SSE', async () => {
-    const stream = await fetch(`/api/auctions/${auction.id}/stream`, {
-      headers: { cookie, accept: 'text/event-stream' },
-      redirect: 'manual',
-    })
-    expect(stream.status).toBe(200)
+  it('11. apre subito lo stream e ci propaga i cambiamenti', async () => {
+    // Lettura con `node:http`: il `fetch` di test-utils non consegna i chunk successivi
+    // finche la risposta resta aperta, quindi misurerebbe il client invece del server.
+    const playerId = id('Sommer')
+    const openedAt = Date.now()
+    const { response, chunks } = await openStream(`/api/auctions/${auction.id}/stream`)
+    const body = () => chunks.join('')
 
-    const reader = stream.body!.getReader()
-    const decoder = new TextDecoder()
-
-    // Il listener `LISTEN` si collega in modo asincrono: finche non e pronto la NOTIFY
-    // andrebbe persa. Un target si puo aggiornare piu volte senza effetti collaterali,
-    // quindi si ritenta invece di scommettere su un ritardo fisso.
-    let buffer = ''
-    const t0 = Date.now()
-    const deadline = t0 + 20_000
     let ticker: ReturnType<typeof setInterval> | undefined
-
     try {
-      const playerId = id('Sommer')
+      expect(response.statusCode).toBe(200)
+      expect(response.headers['content-type']).toContain('text/event-stream')
+      // Nessun buffering sui proxy: senza questo header nginx accumulerebbe lo stream.
+      expect(response.headers['x-accel-buffering']).toBe('no')
+
+      // Regressione: il primo evento parte all'apertura. Con `createEventStream` di h3 le
+      // intestazioni restavano in coda fino al keep-alive e un `EventSource` non si
+      // connetteva per 25 secondi.
+      await until(() => body().includes('event: auction:changed'), 5_000)
+      expect(Date.now() - openedAt, 'stato iniziale').toBeLessThan(5_000)
+
+      // Il `LISTEN` si collega in modo asincrono: un target si puo aggiornare piu volte
+      // senza effetti collaterali, quindi si ritenta invece di fissare un ritardo.
+      const changedAt = Date.now()
       ticker = setInterval(() => {
         void call(`/api/auctions/${auction.id}/targets`, {
           body: { playerId, tier: 'A' },
         }).catch(() => {})
       }, 500)
 
-      while (!buffer.includes('event: auction:changed') && Date.now() < deadline) {
-        const { value, done } = await reader.read()
-        if (done) break
-        buffer += decoder.decode(value, { stream: true })
-      }
+      await until(() => body().includes(playerId), 15_000)
+      expect(Date.now() - changedAt, 'latenza della notifica').toBeLessThan(15_000)
     } finally {
       clearInterval(ticker)
-      await reader.cancel()
+      response.destroy()
     }
 
-    expect(buffer, `arrivato dopo ${Date.now() - t0}ms`).toContain('event: auction:changed')
-    // Durante un'asta un aggiornamento in ritardo non serve a niente: se questo fallisce
-    // vicino ai 25s del keep-alive, lo stream sta accumulando invece di scrivere subito.
-    expect(Date.now() - t0).toBeLessThan(5_000)
-    // La notifica porta lo stato ricalcolato e i giocatori toccati.
-    const payload = buffer
-      .split('event: auction:changed')[1]!
-      .split('\n')[1]!
-      .slice('data: '.length)
-    const change = JSON.parse(payload) as { state: AuctionState; playerIds: string[] }
-    expect(change.playerIds).toContain(id('Sommer'))
+    const frames = body()
+      .split('event: auction:changed')
+      .slice(1)
+      .map((frame) => frame.split(NEWLINE)[1]!.slice('data: '.length))
+    expect(frames.length).toBeGreaterThan(1)
+
+    // Primo frame: lo stato corrente, `playerIds` vuoto = "ricarica tutto". Chi si collega
+    // non deve chiedere `/state` a parte.
+    const initial = JSON.parse(frames[0]!) as { state: AuctionState; playerIds: string[] }
+    expect(initial.playerIds).toEqual([])
+    expect(initial.state.remainingBudget).toBe(100)
+
+    // Frame del cambiamento: nomina il giocatore toccato e porta lo stato ricalcolato.
+    const change = JSON.parse(frames.find((frame) => frame.includes(playerId))!) as {
+      state: AuctionState
+      playerIds: string[]
+    }
+    expect(change.playerIds).toEqual([playerId])
     expect(change.state.initialBudget).toBe(100)
   }, 60_000)
+
+  /**
+   * Due richieste HTTP concorrenti sullo stesso giocatore: la contesa e reale, non
+   * simulata, e passa da `purchasePlayer` invece di riprodurne la sequenza a mano.
+   * Un giocatore non si compra due volte (spec 48).
+   */
+  it('12. su due acquisti dello stesso giocatore ne accetta uno solo', async () => {
+    const playerId = id('Bastoni')
+    const [first, second] = await Promise.all([
+      call(`/api/auctions/${auction.id}/purchases`, { body: { playerId, price: 10 } }),
+      call(`/api/auctions/${auction.id}/purchases`, { body: { playerId, price: 10 } }),
+    ])
+
+    const codes = [first.status, second.status].sort()
+    expect(codes).toEqual([200, 409])
+    expect([first, second].find((r) => r.status === 409)).toMatchObject({
+      body: { data: { code: 'PLAYER_ALREADY_OWNED' } },
+    })
+
+    const roster = await call(`/api/auctions/${auction.id}/roster`)
+    expect(roster.body.players as { playerId: string }[]).toHaveLength(1)
+  })
+
+  /**
+   * Due acquisti concorrenti di giocatori **diversi** che stanno nel budget solo uno per
+   * volta: e il caso che il vincolo unico non protegge e che `lockAuction` esiste per
+   * chiudere. L'asserzione che conta e l'ultima: la rosa non sfora il budget iniziale.
+   */
+  it('13. su due acquisti diversi che sforerebbero il budget ne accetta uno solo', async () => {
+    // Dopo il passo 12: 10 spesi, 90 residui, slot P e A liberi. Due da 60 non ci stanno.
+    const [first, second] = await Promise.all([
+      call(`/api/auctions/${auction.id}/purchases`, {
+        body: { playerId: id('Sommer'), price: 60 },
+      }),
+      call(`/api/auctions/${auction.id}/purchases`, {
+        body: { playerId: id('Lautaro'), price: 60 },
+      }),
+    ])
+
+    const accepted = [first, second].filter((response) => response.status === 200)
+    const rejected = [first, second].filter((response) => response.status !== 200)
+    expect(accepted).toHaveLength(1)
+
+    // Quale dei due controlli scatti dipende dai numeri, non e il punto del test.
+    expect(rejected[0]!.status).toBe(422)
+    expect(errorCode(rejected[0]!.body)).toBeOneOf([
+      'BUDGET_EXCEEDED',
+      'REMAINING_SLOTS_UNFILLABLE',
+    ])
+
+    // La garanzia: nessuna combinazione di richieste concorrenti sfora il budget.
+    const roster = await call(`/api/auctions/${auction.id}/roster`)
+    const spent = (roster.body.players as { purchasePrice: number }[]).reduce(
+      (total, player) => total + player.purchasePrice,
+      0
+    )
+    expect(spent).toBe(70)
+    expect(spent).toBeLessThanOrEqual(auction.initialBudget)
+  })
+})
+
+/**
+ * Il giro `pg_notify` -> `LISTEN` -> sottoscrittori, senza HTTP di mezzo: se lo stream SSE
+ * si guasta, questi due test dicono se la colpa e del bus o della risposta.
+ *
+ * Sta in questo file e non in uno suo perche il progetto `e2e` esegue i file in worker
+ * paralleli: due worker che costruiscono Nitro e aprono pool insieme si disturbano.
+ */
+describe.skipIf(!hasDatabase)('bus di notifica delle aste', () => {
+  const busAuctionId = '00000000-0000-4000-8000-0000000000ff'
+
+  it('consegna al sottoscrittore una notifica emessa in transazione', async () => {
+    const received: AuctionChangePayload[] = []
+    const unsubscribe = subscribeToAuction(busAuctionId, (payload) => received.push(payload))
+
+    try {
+      // Il `LISTEN` si collega in modo asincrono: si ripubblica finche non arriva.
+      const deadline = Date.now() + 10_000
+      while (received.length === 0 && Date.now() < deadline) {
+        await withTransaction((tx) =>
+          publishAuctionChange(tx, busAuctionId, { playerIds: ['p-1'], eventId: 'e-1' })
+        )
+        await new Promise((resolve) => setTimeout(resolve, 200))
+      }
+
+      expect(received[0]).toEqual({
+        auctionId: busAuctionId,
+        playerIds: ['p-1'],
+        eventId: 'e-1',
+      })
+    } finally {
+      unsubscribe()
+    }
+  }, 20_000)
+
+  it('non consegna a chi e sottoscritto a un altra asta', async () => {
+    const other: AuctionChangePayload[] = []
+    const unsubscribe = subscribeToAuction('00000000-0000-4000-8000-0000000000fe', (payload) =>
+      other.push(payload)
+    )
+
+    try {
+      await withTransaction((tx) => publishAuctionChange(tx, busAuctionId, { playerIds: ['p-2'] }))
+      await new Promise((resolve) => setTimeout(resolve, 500))
+      expect(other).toEqual([])
+    } finally {
+      unsubscribe()
+    }
+  }, 20_000)
 })

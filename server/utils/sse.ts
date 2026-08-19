@@ -51,7 +51,17 @@ async function connect(): Promise<void> {
   connecting = true
 
   // Stessa connection string del pool, risolta in un solo punto (`utils/db.ts`).
-  const next = new Client({ connectionString: resolveConnectionString() })
+  //
+  // `connectionTimeoutMillis` non e un dettaglio: senza, una `connect()` che resta appesa
+  // lascia `connecting` a `true` per sempre, quindi ogni sottoscrizione successiva esce
+  // subito e nessuna riconnessione parte mai. Il risultato e un'istanza che non riceve
+  // piu una sola notifica fino al riavvio, in silenzio. `keepAlive` serve allo stesso
+  // scopo dall'altro lato: una connessione morta senza traffico va accorta.
+  const next = new Client({
+    connectionString: resolveConnectionString(),
+    connectionTimeoutMillis: 5_000,
+    keepAlive: true,
+  })
 
   const drop = () => {
     if (client !== next) return

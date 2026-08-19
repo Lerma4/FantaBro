@@ -25,6 +25,12 @@ export default defineConfig({
           name: 'integration',
           environment: 'node',
           include: ['tests/integration/**/*.spec.ts'],
+          // I file di integrazione truncano lo **stesso** database, quindi non possono
+          // girare in parallelo. Con il parallelismo attivo si mettevano in fila su un
+          // advisory lock e il secondo file superava il timeout dello hook: un rosso
+          // intermittente che dipendeva da quanto era lento il primo. Meglio dichiarare
+          // la sequenzialita che emularla e poi aspettare.
+          fileParallelism: false,
         },
       },
       {

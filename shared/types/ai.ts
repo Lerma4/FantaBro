@@ -66,7 +66,17 @@ export interface AuctionContext {
   }
   currentPlayer?: PlayerContext
   targets: TargetContext[]
+  /**
+   * Solo giocatori realmente `AVAILABLE`: suggerire un giocatore gia uscito dal mercato
+   * e un consiglio inutile durante una asta.
+   */
   availableAlternatives: PlayerContext[]
+  /**
+   * Giocatori che lo utente ha chiesto di confrontare (spec 30). Campo separato perche
+   * un confronto puo legittimamente includere un giocatore gia in rosa o venduto ad altri:
+   * infilarli fra le `availableAlternatives` li etichetterebbe come comprabili.
+   */
+  comparePlayers?: PlayerContext[]
   marketAnalytics: MarketAnalytics
 }
 

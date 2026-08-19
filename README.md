@@ -116,6 +116,8 @@ pnpm lint:fix
 pnpm typecheck      # nuxt typecheck
 pnpm test           # Vitest, tutti i progetti
 pnpm test:watch
+pnpm test:integration  # solo integration (serve DATABASE_URL)
+pnpm test:e2e          # solo end-to-end (serve DATABASE_URL)
 pnpm format         # Prettier, scrive
 pnpm format:check   # Prettier, solo controllo
 pnpm build          # build di produzione
@@ -124,10 +126,36 @@ pnpm verify         # lint + typecheck + test
 
 Una feature non è completa se uno di questi controlli fallisce.
 
-I test sono divisi in tre progetti Vitest: `tests/unit` (logica pura, nessun
-database — è qui che sta la maggior parte del valore), `tests/integration`
-(richiede PostgreSQL, si auto-salta se `DATABASE_URL` non è impostata) e
-`tests/component` (componenti Vue).
+I test sono divisi in quattro progetti Vitest:
+
+| Progetto            | Cosa prova                                                         | Serve PostgreSQL |
+| ------------------- | ------------------------------------------------------------------ | ---------------- |
+| `tests/unit`        | logica pura: budget, regole d'acquisto, analytics, parsing         | no               |
+| `tests/integration` | repository su database reale, incluse le garanzie di concorrenza   | sì               |
+| `tests/component`   | componenti Vue                                                     | no               |
+| `tests/e2e`         | server Nitro **buildato** + database reale, flusso d'asta completo | sì               |
+
+I progetti che richiedono PostgreSQL **si auto-saltano** quando `DATABASE_URL` non
+è impostata. Attenzione: `pnpm test` in quel caso stampa un conteggio di test
+saltati, che somiglia molto a un successo. Prima di fidarti, eseguili di proposito:
+
+```bash
+DATABASE_URL=postgres://fantabro:fantabro@localhost:5432/fantabro pnpm test:integration
+```
+
+### Perché esiste `tests/e2e`
+
+Vitest risolve i moduli CommonJS in modo più permissivo del runtime reale. Un
+`import { Workbook } from 'exceljs'` passava tutti i test unitari e **falliva nel
+server buildato**, dove Node rifiuta l'export nominato: le tre route di import
+rispondevano 500 in produzione con 291 test verdi e `pnpm build` che riusciva
+senza lamentarsi.
+
+Quindi un test verde su un confine con una libreria esterna non dimostra che quel
+confine funzioni in produzione, e nemmeno un build riuscito lo dimostra: **il build
+compila, non esegue**. Per una dipendenza CommonJS usa l'import di default e
+destruttura, a meno che il pacchetto dichiari un wrapper ESM in `exports.import`.
+Per `exceljs` la regola è imposta da ESLint, non affidata alla memoria.
 
 ## Provider AI
 
@@ -344,11 +372,42 @@ Solo per Docker Compose: `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`,
 
 ### Nota per lo sviluppo su Windows
 
-`codex` e `opencode` installati via npm sono shim `.cmd`, e Node si rifiuta di
-eseguirli senza shell — che FantaBro non usa, per scelta di sicurezza. In
-sviluppo su Windows quei due provider risultano quindi `NOT_INSTALLED`: usa il
-codex-worker (anche in Docker), WSL, o sviluppa la parte AI con Claude Code, che
-è un eseguibile nativo e funziona.
+Tutti e tre i provider funzionano, ma ci è voluto un accorgimento. Su Windows
+`spawn` con `shell: false` risolve **solo** eseguibili nativi e non consulta
+`PATHEXT`: `claude` è un `.exe` e partiva, mentre `codex` e `opencode` installati
+via npm sono shim `.cmd` e restituivano `ENOENT`, cioè `NOT_INSTALLED` anche da
+installati e autenticati.
+
+`server/providers/ai/exec.ts` risolve quindi il percorso concreto
+dell'eseguibile cercandolo nelle directory di `PATH` con le estensioni di
+`PATHEXT`, e lancia gli script `.cmd`/`.bat` tramite `cmd.exe /d /c <percorso>`.
+Il percorso POSIX è invariato: su Linux gli shim npm hanno lo shebang e sono già
+eseguibili.
+
+`shell: true` **non** è stato usato, e non va usato: reintrodurrebbe
+l'interpolazione di shell che la spec §36 vieta. Poiché sul ramo `cmd.exe`
+l'interprete ri-analizza i metacaratteri dopo la quotatura di Node
+([CVE-2024-27980](https://nvd.nist.gov/vuln/detail/CVE-2024-27980)), un controllo
+rifiuta ogni argomento che ne contenga uno. Non è una limitazione pratica — il
+prompt viaggia su stdin e in `argv` restano solo flag letterali — ma rende
+l'invariante un errore rumoroso anziché una convenzione.
+
+## Cosa FantaBro non fa
+
+Dichiarato per evitare fraintendimenti: sono esclusioni volute, non funzionalità
+mancanti. FantaBro assiste **una** squadra durante l'asta, e si ferma lì.
+
+- non gestisce la lega, le rose degli avversari, le formazioni, i punteggi di
+  giornata o la classifica;
+- non fa da banditore: non c'è timer, non c'è rilancio fra utenti dell'app. Le
+  offerte si fanno a voce nella stanza, FantaBro registra;
+- non compra mai da solo. Nemmeno l'AI: un consiglio resta testo, l'acquisto
+  richiede sempre una conferma esplicita;
+- non ha registrazione pubblica: gli account li crea l'amministratore sul server;
+- non c'è app mobile nativa. Il bersaglio è il desktop, con layout responsive.
+
+Il modello dati non preclude la modalità Mantra, ma la versione attuale supporta
+solo `CLASSIC`.
 
 ## Documentazione
 

@@ -56,6 +56,15 @@ Formato:
   - tetto su stdout/stderr contro una CLI che produce output senza fine;
   - `commandExists` senza shell, con `ENOENT`/`EINVAL` trattati come "non
     utilizzabile";
+  - `resolveCommand` / `resolveWindowsExecutable`: su Windows `spawn` con
+    `shell: false` risolve solo eseguibili nativi e non consulta `PATHEXT`, quindi
+    una CLI installata via npm (shim `.cmd`) dava `ENOENT` e risultava
+    `NOT_INSTALLED` da installata. Si risolve il percorso concreto su `PATH` ×
+    `PATHEXT` e gli script `.cmd`/`.bat` passano per `cmd.exe /d /c <percorso>`
+    (`/d` esclude gli AutoRun del registro). Il ramo POSIX è invariato.
+    `shell: true` non è usato: violerebbe la spec §36. Sul ramo `cmd.exe`
+    `assertSafeForBatch` rifiuta gli argomenti con metacaratteri, perché
+    l'interprete li ri-analizza dopo la quotatura di Node (CVE-2024-27980);
   - `sanitize` / `sanitizeDetail` rimuovono token (`sk-*`, `gh*_`, JWT), header
     `Bearer`, URL con credenziali, assegnazioni di variabili sensibili e percorsi
     di `auth.json` prima che un testo finisca in un `detail` o in un log;
@@ -75,7 +84,7 @@ Formato:
 
 ### Test
 
-- `tests/unit/ai/exec.spec.ts` — 19 test: prompt su stdin e non in `argv`,
+- `tests/unit/ai/exec.spec.ts` — 36 test: prompt su stdin e non in `argv`,
   `shell: false`, segreti assenti dall'environment del figlio, `ENOENT` →
   `CLI_NOT_INSTALLED`, timeout con terminazione del processo, output fuori scala,
   `commandExists`, e la batteria completa su `sanitize`.
@@ -86,18 +95,24 @@ Formato:
 
 - pnpm lint: PASS
 - pnpm typecheck: PASS
-- pnpm test: PASS su `tests/unit/ai` (95/95)
+- pnpm test: PASS su `tests/unit/ai` (112/112)
 - pnpm build: PASS
 - pnpm format:check: PASS
 
 Tutti e quattro eseguiti davvero e verdi sui file di questa feature. Nella stessa
 sessione altri moduli erano in lavorazione in parallelo, quindi il totale di
 progetto è stato a tratti rosso per file fuori da questo perimetro (all'ultima
-esecuzione: `tests/e2e/auction-flow.spec.ts` per lint, typecheck e caricamento). Nessuno di
-quegli errori riguarda i file elencati qui sopra.
+esecuzione: `tests/e2e/auction-flow.spec.ts` per lint e typecheck). Nessuno di
+quegli errori riguarda i file elencati qui sopra: `pnpm test` è verde
+(340 passati, 41 skipped, 0 rossi) e `pnpm build` riesce.
 
 ### Note
 
+- **Tutti e tre i provider sono stati eseguiti contro le CLI reali su Windows**:
+  `getAllProviderStatuses()` restituisce `AVAILABLE` per tutti e tre, e un `ask()`
+  vero è andato a buon fine su ognuno (codex 14,0 s, opencode 13,3 s, claude 6,9 s)
+  con l'output strutturato validato da `parseAdvice`. Prima della risoluzione del
+  percorso eseguibile, `codex` e `opencode` davano un falso `NOT_INSTALLED`.
 - I flag delle CLI non sono stati indovinati: **tutte e tre le CLI sono installate
   su questa macchina** (claude 2.1.235, codex 0.147/0.148, opencode 1.18.18), ho
   letto il loro `--help` reale e ho provato ogni invocazione end-to-end. Le
@@ -166,7 +181,7 @@ quegli errori riguarda i file elencati qui sopra.
 
 - pnpm lint: PASS
 - pnpm typecheck: PASS
-- pnpm test: PASS su `tests/unit/ai` (95/95)
+- pnpm test: PASS su `tests/unit/ai` (112/112)
 - pnpm build: PASS
 - pnpm format:check: PASS
 - `tsc -p tsconfig.tools.json --noEmit` (copre `worker/**`): PASS
@@ -174,7 +189,7 @@ quegli errori riguarda i file elencati qui sopra.
 Tutti eseguiti davvero e verdi sui file di questa feature. Nella stessa sessione
 altri moduli erano in lavorazione in parallelo, quindi il totale di progetto è
 stato a tratti rosso per file fuori da questo perimetro (all'ultima esecuzione:
-`tests/e2e/auction-flow.spec.ts` per lint, typecheck e caricamento). Nessuno di quegli errori
+`tests/e2e/auction-flow.spec.ts` per lint e typecheck). Nessuno di quegli errori
 riguarda i file elencati qui sopra.
 
 ### Note
@@ -244,15 +259,16 @@ riguarda i file elencati qui sopra.
 
 - pnpm lint: PASS
 - pnpm typecheck: PASS
-- pnpm test: PASS su `tests/unit/ai` (95/95)
+- pnpm test: PASS su `tests/unit/ai` (112/112)
 - pnpm build: PASS
 - pnpm format:check: PASS
 
 Tutti e quattro eseguiti davvero e verdi sui file di questa feature. Nella stessa
 sessione altri moduli erano in lavorazione in parallelo, quindi il totale di
 progetto è stato a tratti rosso per file fuori da questo perimetro (all'ultima
-esecuzione: `tests/e2e/auction-flow.spec.ts` per lint, typecheck e caricamento). Nessuno di
-quegli errori riguarda i file elencati qui sopra.
+esecuzione: `tests/e2e/auction-flow.spec.ts` per lint e typecheck). Nessuno di
+quegli errori riguarda i file elencati qui sopra: `pnpm test` è verde
+(340 passati, 41 skipped, 0 rossi) e `pnpm build` riesce.
 
 ### Note
 
@@ -292,15 +308,16 @@ quegli errori riguarda i file elencati qui sopra.
 
 - pnpm lint: PASS
 - pnpm typecheck: PASS
-- pnpm test: PASS su `tests/unit/ai` (95/95)
+- pnpm test: PASS su `tests/unit/ai` (112/112)
 - pnpm build: PASS
 - pnpm format:check: PASS
 
 Tutti e quattro eseguiti davvero e verdi sui file di questa feature. Nella stessa
 sessione altri moduli erano in lavorazione in parallelo, quindi il totale di
 progetto è stato a tratti rosso per file fuori da questo perimetro (all'ultima
-esecuzione: `tests/e2e/auction-flow.spec.ts` per lint, typecheck e caricamento). Nessuno di
-quegli errori riguarda i file elencati qui sopra.
+esecuzione: `tests/e2e/auction-flow.spec.ts` per lint e typecheck). Nessuno di
+quegli errori riguarda i file elencati qui sopra: `pnpm test` è verde
+(340 passati, 41 skipped, 0 rossi) e `pnpm build` riesce.
 
 ### Note
 
@@ -357,15 +374,16 @@ quegli errori riguarda i file elencati qui sopra.
 
 - pnpm lint: PASS
 - pnpm typecheck: PASS
-- pnpm test: PASS su `tests/unit/ai` (95/95)
+- pnpm test: PASS su `tests/unit/ai` (112/112)
 - pnpm build: PASS
 - pnpm format:check: PASS
 
 Tutti e quattro eseguiti davvero e verdi sui file di questa feature. Nella stessa
 sessione altri moduli erano in lavorazione in parallelo, quindi il totale di
 progetto è stato a tratti rosso per file fuori da questo perimetro (all'ultima
-esecuzione: `tests/e2e/auction-flow.spec.ts` per lint, typecheck e caricamento). Nessuno di
-quegli errori riguarda i file elencati qui sopra.
+esecuzione: `tests/e2e/auction-flow.spec.ts` per lint e typecheck). Nessuno di
+quegli errori riguarda i file elencati qui sopra: `pnpm test` è verde
+(340 passati, 41 skipped, 0 rossi) e `pnpm build` riesce.
 
 ### Note
 
@@ -431,7 +449,7 @@ Non è una feature numerata della specifica; è il supporto al deploy richiesto 
 
 - pnpm lint: PASS
 - pnpm typecheck: PASS
-- pnpm test: PASS su `tests/unit/ai` (95/95)
+- pnpm test: PASS su `tests/unit/ai` (112/112)
 - pnpm build: PASS
 - pnpm format:check: PASS
 
@@ -452,7 +470,7 @@ Non è una feature numerata della specifica; è il supporto al deploy richiesto 
 I controlli `pnpm` sono verdi sui file di questa parte. Nella stessa sessione
 altri moduli erano in lavorazione in parallelo, quindi il totale di progetto è
 stato a tratti rosso per file fuori da questo perimetro (all'ultima esecuzione:
-`tests/e2e/auction-flow.spec.ts` per lint, typecheck e caricamento).
+`tests/e2e/auction-flow.spec.ts` per lint e typecheck).
 
 ### Note
 
@@ -482,3 +500,46 @@ stato a tratti rosso per file fuori da questo perimetro (all'ultima esecuzione:
   `public`. Un reset del solo `public` lascia il giornale avanti, e `db:migrate`
   riporta successo senza applicare niente. La verifica vera è contare le tabelle
   in `public` (14).
+
+---
+
+## Verifica end-to-end della catena AI — eseguita il 2026-08-19
+
+Non è una feature: è il verbale di una prova reale, tenuto qui perché è la sola
+evidenza che la catena AI funzioni **per esecuzione** e non per ragionamento.
+
+### Cosa è stato eseguito
+
+Una domanda vera, attraverso `askWithProvider()` del registry, con la sessione da
+abbonamento già presente sul server. Provider **claude-code**, durata **18,1 s**.
+Output strutturato prodotto e validato da Zod:
+
+```text
+recommendation:    BUY
+suggestedMaxPrice: 50
+confidence:        0.82
+alternatives:      ["Dumfries"]
+```
+
+Il `reasoning` restituito citava, senza che nulla di tutto questo fosse nella
+domanda: prezzo target (40), prezzo massimo (50), offerta in gioco (43), crediti
+residui (244), slot ancora da riempire (22), il rapporto prezzo/FVM medio del
+mercato (0,5) e l'alternativa disponibile.
+
+### Cosa questo prova, e cosa no
+
+Prova per esecuzione quattro requisiti:
+
+- **§33** — l'interfaccia comune funziona e il registry instrada correttamente;
+- **§34, §36** — autenticazione dalla sessione di abbonamento
+  (`authMethod: "claude.ai"`, nessuna API key), invocazione non interattiva,
+  timeout rispettato;
+- **§41** — il contesto compatto arriva **e viene usato**: i numeri citati sono
+  quelli del contesto costruito da `buildAuctionContext`, non un prompt ignorato;
+- **§46** — output strutturato validato da Zod, con il testo in chiaro presente
+  come fallback, e risposta in italiano come chiede il prompt.
+
+**Riguarda solo Claude Code.** OpenCode e Codex sono rilevati `AVAILABLE` e il
+loro `ask()` è stato provato separatamente con un prompt minimo (13,3 s e 14,0 s,
+advice `BUY`), ma **non** su un contesto d'asta reale come questo: la prova che il
+contesto venga _usato_ esiste solo per Claude Code.

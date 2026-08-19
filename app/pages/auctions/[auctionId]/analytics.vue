@@ -37,6 +37,17 @@ const roleLabel = (key: string) => (isClassicRole(key) ? t(`roleLong.${key}`) : 
         {{ t('analytics.title') }}
       </h1>
 
+      <!--
+        Fuori dai due rami: e proprio quando non c'e nessun prezzo registrato che
+        l'utente deve sapere quante marcature SOLD non stanno producendo analisi.
+      -->
+      <p v-if="analytics && analytics.soldWithoutPrice > 0" class="mt-5">
+        <span class="tabellare text-sm font-semibold">
+          {{ t('analytics.soldWithoutPrice', { count: n(analytics.soldWithoutPrice) }) }}
+        </span>
+        <span class="etichetta ml-2">{{ t('analytics.soldWithoutPriceHint') }}</span>
+      </p>
+
       <div
         v-if="empty"
         class="mt-10 border border-dashed px-6 py-12"
@@ -49,14 +60,6 @@ const roleLabel = (key: string) => (isClassicRole(key) ? t(`roleLong.${key}`) : 
       </div>
 
       <template v-else-if="analytics">
-        <!-- I venduti senza prezzo restano contati e restano fuori dai calcoli -->
-        <p v-if="analytics.soldWithoutPrice > 0" class="mt-5">
-          <span class="tabellare text-sm font-semibold">
-            {{ t('analytics.soldWithoutPrice', { count: n(analytics.soldWithoutPrice) }) }}
-          </span>
-          <span class="etichetta ml-2">{{ t('analytics.soldWithoutPriceHint') }}</span>
-        </p>
-
         <div class="mt-8 overflow-x-auto">
           <table class="w-full min-w-2xl text-sm" :aria-label="t('analytics.title')">
             <thead>

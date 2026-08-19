@@ -46,6 +46,12 @@ export default defineNuxtConfig({
     },
   },
 
+  // Senza `host` il server di sviluppo si lega al solo loopback IPv6 (`[::1]`), e un
+  // browser che risolve `localhost` in `127.0.0.1` resta in attesa senza mai ricevere
+  // risposta. `0.0.0.0` copre IPv4 e rende l'app raggiungibile dagli altri dispositivi
+  // della rete locale, comodo per provare l'asta in due su macchine diverse.
+  devServer: { host: '0.0.0.0' },
+
   nitro: {
     experimental: { asyncContext: true },
     // Nitro non ha un limite di dimensione del body: `readMultipartFormData` bufferizza

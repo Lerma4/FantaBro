@@ -31,7 +31,26 @@ export function resolveConnectionString(): string {
 
 export function getPool(): Pool {
   if (!globalForDb.__fantabroPool) {
-    globalForDb.__fantabroPool = new Pool({ connectionString: resolveConnectionString() })
+    globalForDb.__fantabroPool = new Pool({
+      connectionString: resolveConnectionString(),
+      // Una connessione inattiva viene chiusa da qualunque cosa stia in mezzo: NAT,
+      // pgbouncer, il port proxy di Docker Desktop. Il pool poi la riconsegna morta e la
+      // query successiva muore con `read ECONNRESET` dopo mezzo minuto: il sintomo e un
+      // 500 lentissimo su una query banale, dopo una pausa di pochi secondi.
+      //
+      // Visto davvero: dopo il passo SSE dei test end-to-end, che dura una decina di
+      // secondi, i due acquisti concorrenti ricevevano 500 invece di 409.
+      //
+      // `keepAlive` manda i probe TCP, e `idleTimeoutMillis` basso fa scartare al pool le
+      // connessioni inattive prima che le chiuda qualcun altro: aprirne una nuova costa
+      // qualche decina di millisecondi, molto meno di una morta.
+      //
+      // Niente `connectionTimeoutMillis`: provato, ed e una cura peggiore del male. Un
+      // acquisto concorrente attende **legittimamente** il lock di riga dell'asta, e un
+      // timeout sull'acquisizione trasforma quell'attesa corretta in un 500.
+      keepAlive: true,
+      idleTimeoutMillis: 5_000,
+    })
   }
   return globalForDb.__fantabroPool
 }

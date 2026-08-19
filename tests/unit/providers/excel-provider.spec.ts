@@ -1,4 +1,7 @@
-import { Workbook } from 'exceljs'
+// Stessa forma del codice di produzione, non perche qui serva (vitest risolve anche
+// l'import nominale) ma perche una forma diversa nei test nasconde il motivo per cui
+// in `worksheet.ts` e scritta cosi. Vedi il commento la.
+import ExcelJS from 'exceljs'
 import { describe, expect, it } from 'vitest'
 import { excelPlayerProvider, getPlayerDataProvider } from '../../../server/providers/players'
 import { ImportFileError } from '../../../server/providers/players/worksheet'
@@ -8,7 +11,7 @@ type Row = (string | number | object | null)[]
 
 /** Genera un vero XLSX in memoria: il round-trip prova anche la lettura delle celle. */
 function xlsx(sheets: Record<string, Row[]>) {
-  const workbook = new Workbook()
+  const workbook = new ExcelJS.Workbook()
   for (const [name, rows] of Object.entries(sheets)) {
     const worksheet = workbook.addWorksheet(name)
     for (const row of rows) worksheet.addRow(row)

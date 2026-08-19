@@ -1,6 +1,11 @@
-import { Workbook } from 'exceljs'
+// `exceljs` e CommonJS: sotto vitest un import nominale funziona, nel bundle ESM di Nitro
+// Node lo rifiuta e il modulo non si carica ("Named export 'Workbook' not found").
+// Default import + destrutturazione e l'unica forma che regge in entrambi.
+import ExcelJS from 'exceljs'
 import type { CellValue, Worksheet } from 'exceljs'
 import type { Cell, CellMatrix } from '../../domain/import'
+
+const { Workbook } = ExcelJS
 
 /**
  * File non leggibile come workbook, o foglio inesistente. Porta il codice stabile che il

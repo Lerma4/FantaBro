@@ -98,8 +98,22 @@ giocatore non disponibile, annullo acquisto, marcatura SOLD, annullo SOLD, parsi
 valido, analytics d'asta, costruzione del contesto AI, fallimenti dei provider AI.
 
 - `tests/unit` — logica pura, nessun database. È qui che sta la maggior parte del valore.
-- `tests/integration` — richiede PostgreSQL; si auto-salta se `DATABASE_URL` non è impostata.
+- `tests/integration` — repository su PostgreSQL reale, incluse le garanzie di concorrenza; si
+  auto-salta se `DATABASE_URL` non è impostata (`pnpm test:integration`).
 - `tests/component` — componenti Vue con `@nuxt/test-utils`.
+- `tests/e2e` — server Nitro **buildato** + PostgreSQL reale (`pnpm test:e2e`).
+
+### Perché `tests/e2e` esiste, e va tenuto verde
+
+Vitest risolve i moduli CommonJS in modo più permissivo del runtime reale. Un
+`import { Workbook } from 'exceljs'` passa tutti i test unitari e poi **fallisce nel server
+buildato**, dove Node rifiuta l'export nominato: le tre route di import rispondevano 500 in
+produzione con 291 test unitari verdi e `pnpm build` che riusciva senza lamentarsi.
+
+Quindi: un test verde su un confine con una libreria esterna **non** dimostra che quel confine
+funzioni in produzione, e nemmeno un build riuscito lo dimostra — il build compila, non esegue.
+Per una dipendenza CommonJS usa l'import di default e destruttura (`import Pkg from 'x'; const
+{ Thing } = Pkg`), a meno che il pacchetto dichiari un wrapper ESM in `exports.import`.
 
 Ogni bug trovato durante lo sviluppo riceve un test di regressione quando è ragionevolmente possibile.
 

@@ -1,33 +1,70 @@
-# deps
+# dipendenze
 node_modules
+.pnpm-store
 
-# nuxt / nitro
+# build Nuxt / Nitro
 .nuxt
 .output
 .nitro
 .cache
 dist
+.vercel
+.netlify
 
-# env & secrets
+# environment e segreti: si committa solo il file di esempio
 .env
 .env.*
 !.env.example
 
-# AI CLI credentials — MAI committare (spec §39)
+# Credenziali dei provider AI: MAI nel repository (spec 39).
+# Vivono su volumi persistenti, non nel codice, e non devono comparire
+# nemmeno per errore in un commit locale.
 .data
 data/ai
 /var/lib/codex
 **/auth.json
-**/.claude/.credentials.json
+**/credentials.json
+**/.credentials.json
+.codex
+.opencode
 
-# misc
-*.log
-.DS_Store
+# Strumenti dei coding agent: configurazione della macchina di chi sviluppa,
+# non del prodotto. AGENTS.md e il file di istruzioni versionato (spec 51).
+.claude
+.codex-cli
+.cursor
+.aider*
+
+# artefatti TypeScript e di test
+*.tsbuildinfo
 coverage
 .vitest-cache
+.vitest-reports
+test-results
+playwright-report
 
-# meta prompt di orchestrazione (non fa parte del prodotto)
+# log
+*.log
+logs
+npm-debug.log*
+pnpm-debug.log*
+yarn-error.log*
+
+# editor e sistema operativo
+.vscode/*
+!.vscode/extensions.json
+.idea
+*.swp
+*~
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# file di lavoro temporanei: sonde e verifiche usa-e-getta non si committano
+*.tmp.ts
+*.probe.ts
+scratch/
+tmp/
+
+# prompt di orchestrazione usato per generare il progetto, non fa parte del prodotto
 orchestration.md
-
-# artefatti di build TypeScript
-*.tsbuildinfo

@@ -1,0 +1,41 @@
+/**
+ * Codici errore stabili.
+ * Il server restituisce SOLO codici; il client li traduce via i18n
+ * (`errors.<CODE>`), così l'app resta pronta al multilingua.
+ */
+export const DOMAIN_ERROR_CODES = [
+  'UNAUTHORIZED',
+  'FORBIDDEN',
+  'NOT_FOUND',
+  'VALIDATION_FAILED',
+  'AUCTION_NOT_FOUND',
+  'PLAYER_NOT_FOUND',
+  'PLAYER_NOT_AVAILABLE',
+  'PLAYER_ALREADY_OWNED',
+  'PLAYER_NOT_OWNED',
+  'PLAYER_NOT_SOLD',
+  'ROLE_SLOTS_FULL',
+  'BUDGET_EXCEEDED',
+  'REMAINING_SLOTS_UNFILLABLE',
+  'PRICE_BELOW_MINIMUM',
+  'CONFLICT',
+  'IMPORT_INVALID_FILE',
+  'IMPORT_MISSING_COLUMNS',
+  'IMPORT_NO_VALID_ROWS',
+  'EVENT_ALREADY_REVERTED',
+  'EVENT_NOT_REVERTABLE',
+  'INTERNAL_ERROR',
+] as const
+
+export const AI_ERROR_CODES = [
+  'CLI_NOT_INSTALLED',
+  'NOT_AUTHENTICATED',
+  'SESSION_EXPIRED',
+  'TIMEOUT',
+  'PROVIDER_RATE_LIMITED',
+  'PROVIDER_BUSY',
+  'INVALID_OUTPUT',
+  'PROCESS_FAILED',
+] as const
+
+export const ALL_ERROR_CODES = [...DOMAIN_ERROR_CODES, ...AI_ERROR_CODES] as const

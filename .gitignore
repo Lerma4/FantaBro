@@ -1,0 +1,30 @@
+# deps
+node_modules
+
+# nuxt / nitro
+.nuxt
+.output
+.nitro
+.cache
+dist
+
+# env & secrets
+.env
+.env.*
+!.env.example
+
+# AI CLI credentials — MAI committare (spec §39)
+.data
+data/ai
+/var/lib/codex
+**/auth.json
+**/.claude/.credentials.json
+
+# misc
+*.log
+.DS_Store
+coverage
+.vitest-cache
+
+# meta prompt di orchestrazione (non fa parte del prodotto)
+orchestration.md

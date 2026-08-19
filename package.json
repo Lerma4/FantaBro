@@ -1,0 +1,67 @@
+{
+  "name": "fantabro",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.34.5",
+  "engines": {
+    "node": ">=22.6.0"
+  },
+  "scripts": {
+    "dev": "nuxt dev",
+    "build": "nuxt build",
+    "preview": "nuxt preview",
+    "postinstall": "nuxt prepare",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "typecheck": "nuxt typecheck",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "db:studio": "drizzle-kit studio",
+    "db:seed": "tsx scripts/seed.ts",
+    "worker:codex": "tsx worker/codex/server.ts",
+    "verify": "pnpm lint && pnpm typecheck && pnpm test"
+  },
+  "dependencies": {
+    "@nuxt/ui": "4.10.0",
+    "@nuxtjs/i18n": "10.6.0",
+    "@pinia/nuxt": "1.0.2",
+    "better-auth": "1.7.1",
+    "drizzle-orm": "0.45.2",
+    "exceljs": "4.4.0",
+    "nuxt": "4.5.2",
+    "pg": "8.23.0",
+    "pinia": "4.0.3",
+    "vue": "latest",
+    "vue-router": "latest",
+    "zod": "4.4.3"
+  },
+  "devDependencies": {
+    "@nuxt/eslint": "1.17.0",
+    "@nuxt/test-utils": "4.1.0",
+    "@types/node": "24.10.1",
+    "@types/pg": "8.23.1",
+    "@vue/test-utils": "2.4.11",
+    "drizzle-kit": "0.31.10",
+    "eslint": "9.39.5",
+    "eslint-config-prettier": "10.1.8",
+    "happy-dom": "20.11.2",
+    "prettier": "3.9.6",
+    "tsx": "4.23.12",
+    "typescript": "5.9.3",
+    "vitest": "4.1.11",
+    "vue-tsc": "3.3.10"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild",
+      "unrs-resolver",
+      "vue-demi",
+      "better-sqlite3"
+    ]
+  }
+}

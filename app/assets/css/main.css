@@ -1,0 +1,208 @@
+@import 'tailwindcss';
+@import '@nuxt/ui';
+
+/*
+  FantaBro - direzione visiva "LISTONE"
+  ------------------------------------------------------------------
+  Riferimenti materiali: la carta rosa dei quotidiani sportivi italiani
+  e il listone stampato che si porta all asta, fitto e rigato.
+  Sopra ci sta un banco operativo: numeri tabellari, letture immediate,
+  zero decorazione. Il rosa e la carta, lo inchiostro e il testo,
+  il verde e comprare, il granata e perso.
+*/
+
+@theme static {
+  /* --- carta: neutrale caldo, non grigio freddo --- */
+  --color-carta-50: #fdf6f3;
+  --color-carta-100: #f9e9e2;
+  --color-carta-200: #f1d6cb;
+  --color-carta-300: #ddbcaf;
+  --color-carta-400: #b8968a;
+  --color-carta-500: #8f7268;
+  --color-carta-600: #6b544c;
+  --color-carta-700: #4c3b35;
+  --color-carta-800: #2e2420;
+  --color-carta-900: #1b1512;
+  --color-carta-950: #100c0a;
+
+  /* --- verde campo: lo unico colore che significa COMPRA --- */
+  --color-verde-50: #ecfdf3;
+  --color-verde-100: #d1fadf;
+  --color-verde-200: #a6f2c3;
+  --color-verde-300: #6ee7a0;
+  --color-verde-400: #34d178;
+  --color-verde-500: #12a85a;
+  --color-verde-600: #0b8547;
+  --color-verde-700: #0a6a3a;
+  --color-verde-800: #0a5330;
+  --color-verde-900: #08442a;
+  --color-verde-950: #032616;
+
+  /* --- granata: perso, venduto ad altri --- */
+  --color-granata-50: #fdf3f3;
+  --color-granata-100: #fbe4e4;
+  --color-granata-200: #f8cdcd;
+  --color-granata-300: #f1a9a9;
+  --color-granata-400: #e77676;
+  --color-granata-500: #d64a4a;
+  --color-granata-600: #b62f2f;
+  --color-granata-700: #8f1f26;
+  --color-granata-800: #6d1a20;
+  --color-granata-900: #4d1418;
+  --color-granata-950: #2a0b0d;
+
+  /* --- rosa: accento identitario, usato con parsimonia --- */
+  --color-rosa-100: #fde9e0;
+  --color-rosa-200: #f9cdbd;
+  --color-rosa-300: #f2a98f;
+  --color-rosa-400: #e8836a;
+  --color-rosa-500: #d95f45;
+
+  /* --- ocra: attenzione, soglia vicina al prezzo massimo --- */
+  --color-ocra-300: #f3cd7a;
+  --color-ocra-400: #e0a92f;
+  --color-ocra-500: #b8801a;
+  --color-ocra-600: #8d5f10;
+
+  --font-display: 'Anton', 'Arial Narrow', ui-sans-serif, sans-serif;
+  --font-sans: 'Archivo', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
+
+  /* scala tipografica: pochi gradini, molto distanti */
+  --text-micro: 0.6875rem;
+  --text-micro--line-height: 1rem;
+  --text-micro--letter-spacing: 0.08em;
+  --text-cifra: 2.75rem;
+  --text-cifra--line-height: 1;
+  --text-cifrona: 4rem;
+  --text-cifrona--line-height: 0.92;
+
+  --radius-riga: 3px;
+}
+
+:root {
+  /* Nuxt UI: verde = azione primaria, carta = neutrale caldo */
+  --ui-radius: 0.25rem;
+
+  /* superfici della carta */
+  --fb-carta: #f7e6de;
+  --fb-carta-alt: #fcf1ec;
+  --fb-carta-riga: #ecd6cb;
+  --fb-inchiostro: #17110f;
+  --fb-inchiostro-tenue: #6b544c;
+  --fb-filo: #dcc0b3;
+  --fb-filo-forte: #b8968a;
+  --fb-banco: #1b1512;
+  --fb-banco-testo: #f9e9e2;
+}
+
+.dark {
+  /* notturno: le aste si fanno di sera, sotto una lampada */
+  --fb-carta: #16100e;
+  --fb-carta-alt: #1e1613;
+  --fb-carta-riga: #251b17;
+  --fb-inchiostro: #f6e7e0;
+  --fb-inchiostro-tenue: #b8968a;
+  --fb-filo: #34251f;
+  --fb-filo-forte: #4c3b35;
+  --fb-banco: #0c0806;
+  --fb-banco-testo: #f9e9e2;
+}
+
+@layer base {
+  html {
+    color-scheme: light dark;
+  }
+
+  body {
+    background-color: var(--fb-carta);
+    color: var(--fb-inchiostro);
+    font-family: var(--font-sans);
+    font-feature-settings: 'ss01', 'cv05';
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Ogni cifra che conta e tabellare: le colonne prezzo devono incolonnarsi. */
+  .tabellare,
+  input[type='number'] {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    font-feature-settings:
+      'tnum' 1,
+      'zero' 1;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-verde-500);
+    outline-offset: 2px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
+
+@layer components {
+  /* etichetta da modulo cartaceo: piccola, spaziata, mai urlata */
+  .etichetta {
+    font-size: var(--text-micro);
+    line-height: 1rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    font-weight: 600;
+    color: var(--fb-inchiostro-tenue);
+  }
+
+  /* il banco comando in testa alla pagina: fondo scuro, come una lavagna */
+  .banco {
+    background-color: var(--fb-banco);
+    color: var(--fb-banco-testo);
+  }
+
+  /* la cifra firma della pagina: MAX OFFERTA */
+  .cifra-firma {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+    letter-spacing: -0.03em;
+  }
+
+  /* riga del listone: rigata come la carta, non a schede */
+  .riga-listone {
+    border-bottom: 1px solid var(--fb-carta-riga);
+  }
+
+  .riga-listone:nth-child(even) {
+    background-color: color-mix(in oklab, var(--fb-carta-alt) 60%, transparent);
+  }
+
+  .riga-listone:hover {
+    background-color: color-mix(in oklab, var(--color-verde-500) 7%, transparent);
+  }
+
+  /* pip di occupazione slot: 3 quadretti pieni su 3 si legge senza numeri */
+  .pip {
+    display: inline-block;
+    width: 0.5rem;
+    height: 0.5rem;
+    border: 1px solid currentColor;
+    border-radius: 1px;
+  }
+
+  .pip-pieno {
+    background-color: currentColor;
+  }
+
+  /* soglia prezzo: banda tricolore sotto il campo prezzo (spec 28) */
+  .soglia {
+    display: grid;
+    height: 4px;
+    border-radius: 999px;
+    overflow: hidden;
+  }
+}

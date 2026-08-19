@@ -1,0 +1,37 @@
+{
+  "app": {
+    "name": "FantaBro",
+    "tagline": "Il tuo banco durante l'asta"
+  },
+  "errors": {
+    "UNAUTHORIZED": "Sessione non valida. Accedi di nuovo.",
+    "FORBIDDEN": "Non hai i permessi per questa operazione.",
+    "NOT_FOUND": "Risorsa non trovata.",
+    "VALIDATION_FAILED": "Dati non validi. Controlla i campi evidenziati.",
+    "AUCTION_NOT_FOUND": "Asta non trovata.",
+    "PLAYER_NOT_FOUND": "Giocatore non trovato.",
+    "PLAYER_NOT_AVAILABLE": "Il giocatore non è più disponibile.",
+    "PLAYER_ALREADY_OWNED": "Il giocatore è già in rosa.",
+    "PLAYER_NOT_OWNED": "Il giocatore non è in rosa.",
+    "PLAYER_NOT_SOLD": "Il giocatore non risulta venduto ad altri.",
+    "ROLE_SLOTS_FULL": "Slot esauriti per questo ruolo.",
+    "BUDGET_EXCEEDED": "Budget insufficiente per questa offerta.",
+    "REMAINING_SLOTS_UNFILLABLE": "A questo prezzo non riesci più a completare gli slot obbligatori.",
+    "PRICE_BELOW_MINIMUM": "Il prezzo è sotto il costo minimo per giocatore.",
+    "CONFLICT": "Un altro utente ha già modificato questo giocatore. Ricarica e riprova.",
+    "IMPORT_INVALID_FILE": "File non leggibile. Serve un file XLSX valido.",
+    "IMPORT_MISSING_COLUMNS": "Mancano colonne obbligatorie nel listone.",
+    "IMPORT_NO_VALID_ROWS": "Nessuna riga valida da importare.",
+    "EVENT_ALREADY_REVERTED": "Operazione già annullata.",
+    "EVENT_NOT_REVERTABLE": "Questa operazione non si può annullare.",
+    "INTERNAL_ERROR": "Errore inatteso. Riprova.",
+    "CLI_NOT_INSTALLED": "La CLI del provider non è installata sul server.",
+    "NOT_AUTHENTICATED": "Il provider è installato ma non autenticato sul server.",
+    "SESSION_EXPIRED": "La sessione del provider è scaduta. Serve un nuovo login sul server.",
+    "TIMEOUT": "Il provider non ha risposto in tempo.",
+    "PROVIDER_RATE_LIMITED": "Il provider ha applicato un limite di frequenza. Riprova tra poco.",
+    "PROVIDER_BUSY": "Il provider sta già rispondendo ad altre richieste. Riprova tra poco.",
+    "INVALID_OUTPUT": "Il provider ha risposto in un formato non atteso.",
+    "PROCESS_FAILED": "Esecuzione del provider fallita."
+  }
+}

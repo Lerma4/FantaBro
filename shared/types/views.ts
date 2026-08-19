@@ -1,0 +1,117 @@
+import type {
+  AuctionEventType,
+  AuctionPlayerStatus,
+  ClassicRole,
+  RoleBudgets,
+  RoleSlots,
+} from './domain'
+
+/** Riga del listone: player + stato asta + statistiche stagione precedente + dati personali. */
+export interface PlayerRow {
+  playerId: string
+  name: string
+  team: string
+  role: ClassicRole
+  mantraRole: string | null
+  quotation: number
+  fvm: number
+  status: AuctionPlayerStatus
+  soldPrice: number | null
+  otherTeamName: string | null
+  purchasePrice: number | null
+  /** Stagione delle statistiche riportate. La UI deve sempre mostrarla (spec 12). */
+  statsSeason: string | null
+  appearances: number | null
+  averageRating: number | null
+  fantasyAverage: number | null
+  goals: number | null
+  assists: number | null
+  tier: string | null
+  targetPrice: number | null
+  maxPrice: number | null
+  priority: number | null
+  isTarget: boolean
+  notes: string | null
+}
+
+export interface RoleSlotState {
+  role: ClassicRole
+  total: number
+  occupied: number
+  free: number
+}
+
+export interface RoleBudgetState {
+  role: ClassicRole
+  planned: number | null
+  spent: number
+  plannedRemaining: number | null
+  /** 0-100+, `null` quando non e stato pianificato nulla per il ruolo. */
+  percentageUsed: number | null
+}
+
+/** Stato derivato: mai persistito, sempre ricalcolato dagli acquisti (spec 21). */
+export interface AuctionState {
+  auctionId: string
+  initialBudget: number
+  minimumPlayerCost: number
+  spent: number
+  remainingBudget: number
+  totalSlots: number
+  occupiedSlots: number
+  remainingSlots: number
+  /** `null` quando non restano slot. */
+  averageBudgetPerRemainingSlot: number | null
+  maxBid: number
+  slots: RoleSlotState[]
+  roleBudgets: RoleBudgetState[]
+}
+
+export interface AuctionSummary {
+  id: string
+  name: string
+  season: string
+  mode: string
+  initialBudget: number
+  minimumPlayerCost: number
+  roleSlots: RoleSlots
+  roleBudgets: RoleBudgets | null
+  memberRole: string
+  playersCount: number
+}
+
+export interface AuctionEventRow {
+  id: string
+  type: AuctionEventType
+  playerId: string | null
+  playerName: string | null
+  actorName: string | null
+  payload: Record<string, unknown>
+  createdAt: string
+  revertedAt: string | null
+}
+
+/** Analytics di mercato: SOLO prezzi realmente registrati (spec 31). */
+export interface MarketBucket {
+  key: string
+  soldCount: number
+  averageSoldPrice: number | null
+  averageFvm: number | null
+  /** Rapporto prezzo/FVM; `null` se il FVM medio e 0 o assente. */
+  priceToFvm: number | null
+  /** Scostamento percentuale vs FVM: +20 significa premio del 20 per cento. */
+  premiumVsFvmPct: number | null
+}
+
+export interface MarketAnalytics {
+  overall: MarketBucket
+  byRole: MarketBucket[]
+  byTier: MarketBucket[]
+  /** Giocatori SOLD senza prezzo registrato: esclusi dai calcoli, mai inventati. */
+  soldWithoutPrice: number
+}
+
+/** Confronto giocatori (spec 30). */
+export interface PlayerComparison {
+  players: PlayerRow[]
+}

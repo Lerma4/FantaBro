@@ -320,6 +320,41 @@ promuovere la nuova versione: un giornale delle migrazioni disallineato fa
 riportare successo al `Job` con lo schema incompleto (vedi
 [Database e migrazioni](#database-e-migrazioni)).
 
+## Se metti FantaBro dietro un proxy
+
+Vale per Traefik, Caddy, un nginx a mano o qualunque reverse proxy diverso
+dall'Ingress già configurato in [`k8s/app.yaml`](k8s/app.yaml). Due impostazioni
+non sono opzionali, perché senza di esse **la collaborazione multi-utente non
+funziona**:
+
+| Impostazione             | Valore          | Perché                                                                                                           |
+| ------------------------ | --------------- | ---------------------------------------------------------------------------------------------------------------- |
+| Buffering delle risposte | **disattivato** | `GET /api/auctions/:id/stream` è SSE: con il buffering gli aggiornamenti arrivano a blocchi, o non arrivano      |
+| Timeout di lettura       | **≥ 120 s**     | Lo stream resta aperto; il keep-alive è a 25 s, ma un timeout a 60 s chiude comunque la connessione a intervalli |
+
+Il sintomo di un buffering attivo è **"gli altri utenti non vedono i miei
+acquisti"**, e in locale non si riproduce: senza proxy davanti lo stream funziona.
+La route manda già `x-accel-buffering: no`, che nginx e ingress-nginx rispettano,
+ma non tutti i proxy lo fanno.
+
+Con un timeout di lettura troppo basso l'asta funziona comunque — il client si
+riconnette — ma è rumore inutile e nella finestra di riconnessione si perdono
+notifiche.
+
+Lo stesso timeout serve anche alle risposte AI, che possono richiedere fino a
+`NUXT_AI_TIMEOUT_MS` (default 120 s).
+
+## Traffico in uscita necessario
+
+A runtime l'immagine dell'app è **autosufficiente per gli asset**: le icone sono
+incluse nel bundle (`@iconify-json/lucide`), quindi non vengono richieste all'API
+pubblica di Iconify e i pulsanti di sola icona funzionano anche su un server senza
+rete verso l'esterno.
+
+Il traffico in uscita serve solo per l'AI: le CLI dei provider devono raggiungere i
+rispettivi servizi. Su Kubernetes questo riguarda il pod `codex-worker`, e per
+questo la sua `NetworkPolicy` limita **solo** l'ingresso e lascia l'uscita libera.
+
 ## Limite di upload
 
 L'import del listone è un upload di file Excel. Il limite è **15 MB**, applicato

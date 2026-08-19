@@ -66,8 +66,9 @@ let cookie = ''
 let auction: AuctionSummary
 let players: PlayerRow[] = []
 
+/** Nome + squadra: il database e condiviso e un omonimo di un'altra suite e possibile. */
 function id(name: string): string {
-  const row = players.find((player) => player.name === name)
+  const row = players.find((player) => player.name === name && player.team === 'Inter')
   if (!row) throw new Error(`giocatore ${name} non importato`)
   return row.playerId
 }
@@ -220,8 +221,13 @@ describe.skipIf(!hasDatabase)('flusso d asta end to end', async () => {
     expect(status).toBe(200)
 
     players = body.rows as PlayerRow[]
-    expect(players).toHaveLength(5)
-    expect(players.every((row) => row.status === 'AVAILABLE')).toBe(true)
+
+    // Nessun conteggio assoluto: il listone della stagione e condiviso con le altre suite
+    // che girano sullo stesso database. Conta che i giocatori importati ci siano.
+    const imported = LISTONE.slice(3).map((row) => row[3])
+    const mine = players.filter((row) => imported.includes(row.name) && row.team === 'Inter')
+    expect(mine.map((row) => row.name).sort()).toEqual([...imported].sort())
+    expect(mine.every((row) => row.status === 'AVAILABLE')).toBe(true)
     expect(body.statsSeason).toBeDefined()
     expect(body.teams).toContain('Inter')
   })

@@ -15,9 +15,17 @@ interface AuctionChanged {
  * Realtime (spec 47): SSE con riconnessione automatica e caduta su polling
  * quando lo stream non parte. Nessun refresh manuale della pagina.
  *
- * Si ascolta solo `auction:changed`: il `ping` di keep-alive ogni 25s non e un
- * cambio di stato, e trattare "qualunque evento" come tale farebbe ricaricare il
- * listone ogni 25 secondi durante un'asta.
+ * Si ascolta `auction:changed` con `addEventListener` perche l'evento e
+ * tipizzato: un `onmessage` non lo riceverebbe. Il keep-alive del server e un
+ * commento SSE, che `EventSource` scarta da solo senza generare eventi.
+ *
+ * All'apertura il server manda subito lo stato corrente come `auction:changed`
+ * con `playerIds: []`, quindi non serve una `GET /state` per allinearsi.
+ *
+ * ponytail: quel primo evento fa rifare la fetch delle righe che la pagina ha
+ * gia fatto al mount. Una richiesta in piu al caricamento, tenuta di proposito:
+ * chiude la finestra fra mount e apertura dello stream, in cui una modifica di
+ * un altro utente non sarebbe visibile fino al cambio successivo.
  */
 export function useAuctionStream(auctionId: string, onChanged: (payload: AuctionChanged) => void) {
   const store = useAuctionStore()

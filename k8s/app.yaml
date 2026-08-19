@@ -130,7 +130,28 @@ metadata:
     # Con un ingress controller diverso serve l'annotazione equivalente (Traefik:
     # middleware `buffering.maxRequestBodyBytes`; HAProxy: `client-body-buffer-size`).
     nginx.ingress.kubernetes.io/proxy-body-size: '16m'
-    # Una risposta AI può richiedere fino a NUXT_AI_TIMEOUT_MS.
+
+    # SSE: `GET /api/auctions/:id/stream` resta aperto e consegna gli aggiornamenti
+    # d'asta man mano. nginx **accumula** il corpo delle risposte per default, e con
+    # il buffering attivo lo stream arriverebbe a blocchi o non arriverebbe affatto.
+    # Il sintomo in produzione sarebbe "gli altri non vedono i miei acquisti", che in
+    # locale non si riproduce: da qui la difficoltà a diagnosticarlo.
+    #
+    # La route manda già `x-accel-buffering: no`, che con ingress-nginx di norma
+    # basta. Questa annotazione è la rete di sicurezza per quando quell'intestazione
+    # non viene rispettata (proxy intermedi, versioni con `proxy_ignore_headers`).
+    # NON RIMUOVERE senza aver verificato la collaborazione multi-utente.
+    #
+    # Vale per tutto l'Ingress e non per la sola route: separarla richiederebbe un
+    # secondo oggetto Ingress, e per un'app self-hosted di queste dimensioni il costo
+    # di non bufferizzare le altre risposte è irrilevante.
+    nginx.ingress.kubernetes.io/proxy-buffering: 'off'
+
+    # Copre due esigenze diverse, e va tenuto sopra entrambe:
+    # - una risposta AI può richiedere fino a NUXT_AI_TIMEOUT_MS (default 120s);
+    # - lo stream SSE manda un keep-alive ogni 25s, ma il default di 60s chiuderebbe
+    #   comunque la connessione a intervalli regolari: il client si riconnette, e in
+    #   quella finestra perde le notifiche.
     nginx.ingress.kubernetes.io/proxy-read-timeout: '180'
 spec:
   ingressClassName: nginx

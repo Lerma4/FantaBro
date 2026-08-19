@@ -495,6 +495,16 @@ stato a tratti rosso per file fuori da questo perimetro (all'ultima esecuzione:
   quindi un limite esterno pari a 15 MB rifiuterebbe con un 413 opaco un file da
   15 MB valido. In Docker Compose l'app è esposta senza proxy davanti, quindi quel
   limite duro non c'è: dichiarato come limitazione nota nel README.
+- **SSE e proxy**: l'Ingress dichiara `proxy-buffering: 'off'` e
+  `proxy-read-timeout: '180'`. Il primo perché nginx accumula il corpo delle
+  risposte per default e con il buffering attivo lo stream degli aggiornamenti
+  d'asta arriva a blocchi o non arriva — sintomo "gli altri non vedono i miei
+  acquisti", non riproducibile in locale. La route manda già
+  `x-accel-buffering: no`, che ingress-nginx rispetta: l'annotazione è la rete di
+  sicurezza. Il secondo perché il keep-alive dello stream è a 25 s ma il default
+  di 60 s chiuderebbe la connessione a intervalli, e perché una risposta AI può
+  richiedere fino a `NUXT_AI_TIMEOUT_MS`. Requisiti documentati nel README anche
+  per chi usa un proxy diverso.
 - **Trappola del giornale Drizzle** documentata nel README e accanto al Job di
   migrazione: il registro delle migrazioni vive nello schema `drizzle`, non in
   `public`. Un reset del solo `public` lascia il giornale avanti, e `db:migrate`

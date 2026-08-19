@@ -311,7 +311,7 @@ describe('codex-worker: POST /ask', () => {
 
     expect(reply.status).toBe(503)
     expect(reply.body).toMatchObject({ code: 'NOT_AUTHENTICATED' })
-    expect(fakeSpawn.calls.some((c) => c.args.includes('exec'))).toBe(false)
+    expect(fakeSpawn.calls.some((c) => c.appArgs.includes('exec'))).toBe(false)
   })
 
   it('GET /status non restituisce credenziali', async () => {

@@ -2,8 +2,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { AiProviderError } from '#shared/types/ai'
 import {
+  assertSafeForBatch,
   buildEnv,
   commandExists,
+  resolveWindowsExecutable,
   runCommand,
   sanitize,
   sanitizeDetail,
@@ -161,6 +163,119 @@ describe('runCommand', () => {
   })
 })
 
+describe('resolveWindowsExecutable', () => {
+  // Su Windows `spawn` senza shell non consulta PATHEXT: senza risoluzione, una
+  // CLI installata via npm (che sul disco è `nome.cmd`) risulta NOT_INSTALLED
+  // anche quando è installata e autenticata.
+  const NPM_BIN = 'C:\\Users\\x\\AppData\\Roaming\\npm'
+  const NATIVE_BIN = 'C:\\Users\\x\\.local\\bin'
+
+  const options = (present: string[]) => ({
+    pathDirs: [NATIVE_BIN, NPM_BIN],
+    extensions: ['.com', '.exe', '.bat', '.cmd'],
+    comspec: 'C:\\Windows\\system32\\cmd.exe',
+    exists: (candidate: string) => present.includes(candidate),
+  })
+
+  it('esegue direttamente un eseguibile nativo', () => {
+    const resolved = resolveWindowsExecutable('claude', options([`${NATIVE_BIN}\\claude.exe`]))
+
+    expect(resolved).toEqual({
+      command: `${NATIVE_BIN}\\claude.exe`,
+      prefixArgs: [],
+      viaCmd: false,
+    })
+  })
+
+  it('instrada uno shim .cmd attraverso cmd.exe con il percorso completo', () => {
+    const resolved = resolveWindowsExecutable('codex', options([`${NPM_BIN}\\codex.cmd`]))
+
+    expect(resolved).toEqual({
+      command: 'C:\\Windows\\system32\\cmd.exe',
+      // `/d` esclude gli AutoRun del registro; il percorso è esplicito, non un nome.
+      prefixArgs: ['/d', '/c', `${NPM_BIN}\\codex.cmd`],
+      viaCmd: true,
+    })
+  })
+
+  it('preferisce l’eseguibile nativo quando esistono entrambi', () => {
+    // PATHEXT elenca `.exe` prima di `.cmd`, e `.exe` non richiede interprete.
+    const resolved = resolveWindowsExecutable(
+      'opencode',
+      options([`${NPM_BIN}\\opencode.exe`, `${NPM_BIN}\\opencode.cmd`])
+    )
+
+    expect(resolved.viaCmd).toBe(false)
+    expect(resolved.command).toBe(`${NPM_BIN}\\opencode.exe`)
+  })
+
+  it('rispetta l’ordine delle directory di PATH', () => {
+    const resolved = resolveWindowsExecutable(
+      'codex',
+      options([`${NATIVE_BIN}\\codex.exe`, `${NPM_BIN}\\codex.cmd`])
+    )
+
+    expect(resolved.command).toBe(`${NATIVE_BIN}\\codex.exe`)
+  })
+
+  it('classifica un percorso già esplicito senza cercarlo', () => {
+    const resolved = resolveWindowsExecutable(`${NPM_BIN}\\codex.cmd`, options([]))
+
+    expect(resolved.viaCmd).toBe(true)
+    expect(resolved.prefixArgs).toEqual(['/d', '/c', `${NPM_BIN}\\codex.cmd`])
+  })
+
+  it('non aggiunge estensioni a un nome che ne ha già una', () => {
+    const resolved = resolveWindowsExecutable('codex.cmd', options([`${NPM_BIN}\\codex.cmd`]))
+
+    expect(resolved.viaCmd).toBe(true)
+  })
+
+  it('lascia il nome nudo se non lo trova, così spawn dà ENOENT', () => {
+    // ENOENT è già tradotto in NOT_INSTALLED: nessun percorso inventato.
+    const resolved = resolveWindowsExecutable('assente', options([]))
+
+    expect(resolved).toEqual({ command: 'assente', prefixArgs: [], viaCmd: false })
+  })
+})
+
+describe('assertSafeForBatch', () => {
+  // `cmd.exe` ri-analizza questi caratteri **dopo** la quotatura di Node, quindi un
+  // argomento che li contiene può far eseguire un secondo comando: è la ragione per
+  // cui Node rifiuta di eseguire `.cmd` senza shell (CVE-2024-27980). In FantaBro il
+  // prompt viaggia su stdin e in `argv` restano solo flag letterali, quindi il caso
+  // non si presenta — ma se si presentasse deve essere rumoroso, non eseguito.
+  it.each(['ciao & calc.exe', 'a | b', 'a > out', 'a < in', 'a ^ b', 'say "hi"', '%PATH%', 'a!b'])(
+    'rifiuta un argomento contenente %j',
+    (arg) => {
+      expect(() => assertSafeForBatch('codex', ['exec', arg])).toThrow(AiProviderError)
+      try {
+        assertSafeForBatch('codex', ['exec', arg])
+      } catch (error) {
+        expect((error as AiProviderError).code).toBe('PROCESS_FAILED')
+      }
+    }
+  )
+
+  it('accetta i flag letterali e i percorsi temporanei che usiamo davvero', () => {
+    expect(() =>
+      assertSafeForBatch('codex', [
+        'exec',
+        '--sandbox',
+        'read-only',
+        '--skip-git-repo-check',
+        '--cd',
+        'C:\\Users\\x\\AppData\\Local\\Temp\\fantabro-ai-a1b2c3',
+        '-',
+      ])
+    ).not.toThrow()
+  })
+
+  it('accetta la stringa vuota di `--tools ""`', () => {
+    expect(() => assertSafeForBatch('claude', ['--tools', ''])).not.toThrow()
+  })
+})
+
 describe('commandExists', () => {
   it('è falso quando l’eseguibile non c’è', async () => {
     fakeSpawn.queue({ errorCode: 'ENOENT' })
@@ -175,6 +290,6 @@ describe('commandExists', () => {
   it('è vero quando `--version` risponde', async () => {
     fakeSpawn.queue({ stdout: '2.1.235', code: 0 })
     await expect(commandExists('claude')).resolves.toBe(true)
-    expect(fakeSpawn.last().args).toEqual(['--version'])
+    expect(fakeSpawn.last().appArgs).toEqual(['--version'])
   })
 })

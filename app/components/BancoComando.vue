@@ -128,6 +128,12 @@ async function logout() {
           </dd>
         </div>
         <div>
+          <dt class="etichetta !text-white/50">{{ t('auction.remainingSlots') }}</dt>
+          <dd class="tabellare text-base leading-tight font-semibold">
+            {{ n(store.state.remainingSlots) }}
+          </dd>
+        </div>
+        <div>
           <dt class="etichetta !text-white/50">{{ t('auction.slots') }}</dt>
           <dd class="flex flex-wrap items-baseline gap-x-3 gap-y-1 pt-0.5">
             <SlotPips

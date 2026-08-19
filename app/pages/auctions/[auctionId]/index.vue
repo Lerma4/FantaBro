@@ -268,6 +268,7 @@ const emptyListone = computed(
           class="griglia-listone border-b px-2 py-1"
           :style="{ borderColor: 'var(--fb-filo-forte)' }"
           role="row"
+          aria-rowindex="1"
         >
           <span role="columnheader" class="sr-only">{{ t('players.select') }}</span>
           <span role="columnheader" class="etichetta">{{ t('columns.name') }}</span>
@@ -308,10 +309,11 @@ const emptyListone = computed(
         <ListoneRow
           v-for="(row, index) in windowRows"
           :key="row.playerId"
-          v-memo="[row, isSelected(row.playerId)]"
+          v-memo="[row, isSelected(row.playerId), start + index]"
           :row="row"
           :auction-id="auctionId"
           :selected="isSelected(row.playerId)"
+          :aria-rowindex="start + index + 2"
           :class="{ 'riga-alt': (start + index) % 2 === 1 }"
           :style="{ height: `${ROW_H}px` }"
           @applied="onApplied"

@@ -17,9 +17,10 @@
  * riportare, sempre passando da `sanitize`.
  */
 import { spawn } from 'node:child_process'
+import { existsSync } from 'node:fs'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { delimiter, extname, isAbsolute, join, sep } from 'node:path'
 import { AiProviderError } from '#shared/types/ai'
 
 export interface RunCommandOptions {
@@ -96,6 +97,129 @@ export function buildEnv(extra?: Record<string, string>): Record<string, string>
   return { ...env, ...extra }
 }
 
+/**
+ * Risoluzione dell'eseguibile, con `shell: false` sempre.
+ *
+ * Su Windows `spawn` senza shell risolve **solo** eseguibili nativi: non consulta
+ * `PATHEXT`, quindi un `bin` come `codex` installato via npm — che sul disco è
+ * `codex.cmd` — restituisce `ENOENT` e il provider risulta `NOT_INSTALLED` anche
+ * quando è installato e autenticato. Si risolve quindi il percorso concreto e, se
+ * è uno script di comandi, lo si esegue tramite l'interprete batch.
+ *
+ * `shell: true` NON è un'opzione: reintrodurrebbe l'interpolazione di shell che la
+ * spec §36 vieta, e il prompt utente passerebbe per un interprete di comandi.
+ */
+export interface ResolvedCommand {
+  command: string
+  /** Argomenti da premettere a quelli del chiamante. */
+  prefixArgs: string[]
+  /** `true` se si passa per l'interprete batch: allora gli argomenti vanno validati. */
+  viaCmd: boolean
+}
+
+/** Estensioni che `spawn` può eseguire direttamente, senza interprete. */
+const NATIVE_EXTENSIONS = new Set(['.exe', '.com'])
+
+/** Script di comandi: eseguibili solo tramite `cmd.exe`. */
+const BATCH_EXTENSIONS = new Set(['.cmd', '.bat'])
+
+/**
+ * `cmd.exe` ri-analizza questi caratteri **dopo** la quotatura di Node, quindi un
+ * argomento che li contiene può uscire dal comando e farne eseguire un altro
+ * (è la ragione per cui Node rifiuta di eseguire `.cmd` senza shell: CVE-2024-27980).
+ *
+ * In FantaBro nessun dato utente arriva in `argv` — il prompt viaggia su stdin e
+ * gli altri argomenti sono flag letterali più un percorso temporaneo generato da
+ * `mkdtemp`. Questo controllo trasforma quell'invariante in un errore rumoroso
+ * invece di un commento: se un domani qualcuno passasse un prompt in `argv` su
+ * Windows, otterrebbe un rifiuto e non una esecuzione arbitraria.
+ */
+const CMD_METACHARACTERS = /[&|<>^"%!]/
+
+/**
+ * Da chiamare solo sul ramo `cmd.exe`. Lancia se un argomento contiene un
+ * metacarattere dell'interprete batch.
+ */
+export function assertSafeForBatch(bin: string, args: string[]): void {
+  const unsafe = args.find((arg) => CMD_METACHARACTERS.test(arg))
+  if (unsafe === undefined) return
+  throw new AiProviderError(
+    'PROCESS_FAILED',
+    `${bin}: unsafe argument for the batch interpreter`,
+    'Un argomento contiene un metacarattere di cmd.exe. Il prompt va su stdin, non in argv.'
+  )
+}
+
+/**
+ * Cerca `bin` nelle directory di `pathDirs` con le estensioni di `extensions`.
+ * Pura e con le dipendenze iniettate, così è verificabile senza toccare
+ * `process.platform` né il filesystem.
+ */
+export function resolveWindowsExecutable(
+  bin: string,
+  options: {
+    pathDirs: string[]
+    extensions: string[]
+    comspec: string
+    exists: (candidate: string) => boolean
+  }
+): ResolvedCommand {
+  const viaCmd = (fullPath: string): ResolvedCommand => ({
+    command: options.comspec,
+    // `/d` disabilita gli AutoRun del registro, che altrimenti girerebbero prima
+    // del nostro comando. `/c` esegue e esce.
+    prefixArgs: ['/d', '/c', fullPath],
+    viaCmd: true,
+  })
+
+  const classify = (fullPath: string): ResolvedCommand => {
+    const ext = extname(fullPath).toLowerCase()
+    if (BATCH_EXTENSIONS.has(ext)) return viaCmd(fullPath)
+    return { command: fullPath, prefixArgs: [], viaCmd: false }
+  }
+
+  // Percorso già esplicito: niente da cercare, serve solo capire come lanciarlo.
+  if (isAbsolute(bin) || bin.includes(sep) || bin.includes('/')) {
+    return classify(bin)
+  }
+
+  // Se il nome porta già un'estensione eseguibile, non si prova ad aggiungerne altre.
+  const declared = extname(bin).toLowerCase()
+  const suffixes =
+    NATIVE_EXTENSIONS.has(declared) || BATCH_EXTENSIONS.has(declared) ? [''] : options.extensions
+
+  for (const dir of options.pathDirs) {
+    for (const suffix of suffixes) {
+      const candidate = join(dir, bin + suffix)
+      if (options.exists(candidate)) return classify(candidate)
+    }
+  }
+
+  // Non trovato: si lascia il nome nudo e `spawn` produrrà ENOENT, che i provider
+  // traducono già in `NOT_INSTALLED`.
+  return { command: bin, prefixArgs: [], viaCmd: false }
+}
+
+/** Su POSIX non serve nulla: gli shim npm sono file con shebang, già eseguibili. */
+export function resolveCommand(bin: string): ResolvedCommand {
+  if (process.platform !== 'win32') {
+    return { command: bin, prefixArgs: [], viaCmd: false }
+  }
+
+  const rawPath = process.env.Path ?? process.env.PATH ?? ''
+  const rawPathExt = process.env.PATHEXT ?? '.COM;.EXE;.BAT;.CMD'
+
+  return resolveWindowsExecutable(bin, {
+    pathDirs: rawPath.split(delimiter).filter(Boolean),
+    extensions: rawPathExt
+      .split(';')
+      .filter(Boolean)
+      .map((ext) => ext.toLowerCase()),
+    comspec: process.env.COMSPEC ?? 'cmd.exe',
+    exists: existsSync,
+  })
+}
+
 function killProcessTree(child: { pid?: number; kill: (signal: NodeJS.Signals) => boolean }): void {
   // ponytail: su POSIX il figlio è capogruppo (`detached`), così il pid negativo
   // raggiunge anche i nipoti — le CLI AI lanciano sottoprocessi. Su Windows non
@@ -147,9 +271,15 @@ export async function runCommand(
   options: RunCommandOptions
 ): Promise<RunCommandResult> {
   const maxOutputBytes = options.maxOutputBytes ?? DEFAULT_MAX_OUTPUT_BYTES
+  const resolved = resolveCommand(bin)
+  const spawnArgs = [...resolved.prefixArgs, ...args]
+
+  // Vale solo per il ramo `cmd.exe`: lì gli argomenti vengono ri-analizzati
+  // dall'interprete. Vedi `CMD_METACHARACTERS`.
+  if (resolved.viaCmd) assertSafeForBatch(bin, args)
 
   return await new Promise<RunCommandResult>((resolve, reject) => {
-    const child = spawn(bin, args, {
+    const child = spawn(resolved.command, spawnArgs, {
       cwd: options.cwd,
       env: buildEnv(options.env),
       stdio: ['pipe', 'pipe', 'pipe'],
@@ -206,14 +336,15 @@ export async function runCommand(
         return
       }
       if (error.code === 'EINVAL') {
-        // Windows: Node rifiuta di eseguire uno shim `.cmd`/`.bat` senza shell, e
-        // usare la shell non è un'opzione. Serve un eseguibile reale (vedi README).
+        // Non dovrebbe più capitare: `resolveCommand` instrada gli script `.cmd`
+        // attraverso `cmd.exe /d /c`. Se accade, il percorso risolto non è
+        // eseguibile e il nome nudo non basta a diagnosticarlo.
         finish(() =>
           reject(
             new AiProviderError(
               'PROCESS_FAILED',
               `${bin} is not directly executable`,
-              'Su Windows le CLI installate come shim .cmd non sono eseguibili senza shell: usare un binario nativo, WSL o il codex-worker.'
+              'Eseguibile risolto ma non avviabile senza shell: verificare PATH e PATHEXT.'
             )
           )
         )

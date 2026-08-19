@@ -32,6 +32,14 @@ export const AUCTION_EVENT_TYPES = [
   'IMPORT_COMPLETED',
 ] as const
 
+/**
+ * Operazioni annullabili (spec 25, che dice "at minimum": la lista e destinata a crescere).
+ * Sta in `shared/` perche la usano sia il controllo lato server sia il registro operazioni,
+ * che decide se mostrare il bottone Annulla. Due copie divergerebbero nel modo peggiore:
+ * un annullo legittimo senza bottone, o un bottone che risponde EVENT_NOT_REVERTABLE.
+ */
+export const REVERTABLE_EVENT_TYPES = ['PLAYER_PURCHASED', 'PLAYER_SOLD'] as const
+
 export const DEFAULT_ROLE_SLOTS = { P: 3, D: 8, C: 8, A: 6 } as const
 
 export const DEFAULT_INITIAL_BUDGET = 500

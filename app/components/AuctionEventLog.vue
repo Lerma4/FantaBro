@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { REVERTABLE_EVENT_TYPES } from '#shared/constants'
 import type { AuctionEventRow, AuctionState, PlayerRow } from '#shared/types'
 
 const props = defineProps<{
@@ -17,7 +18,8 @@ const toastError = useToastError()
 const toastOk = useToastOk()
 
 const PAGE = 50
-const REVERTABLE = new Set(['PLAYER_PURCHASED', 'PLAYER_SOLD'])
+/** Cresce da sola quando il dominio aggiunge un tipo annullabile. */
+const REVERTABLE: ReadonlySet<string> = new Set(REVERTABLE_EVENT_TYPES)
 
 const open = ref(false)
 const rows = ref<AuctionEventRow[]>([])

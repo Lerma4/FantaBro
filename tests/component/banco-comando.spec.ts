@@ -29,6 +29,14 @@ describe('BancoComando', () => {
     expect(text).toContain('26')
   })
 
+  it('stampa gli slot liberi totali, senza farli sommare a mente (spec 20, 21)', async () => {
+    const wrapper = await mountSuspended(harness())
+    const voce = wrapper.findAll('dt').find((node) => node.text() === 'Slot liberi')
+      ?.element.nextElementSibling
+
+    expect(voce?.textContent?.trim()).toBe('11')
+  })
+
   it('rende la cifra firma MAX OFFERTA', async () => {
     const wrapper = await mountSuspended(harness())
     const firma = wrapper.find('.cifra-firma')

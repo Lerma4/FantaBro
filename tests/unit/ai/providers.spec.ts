@@ -49,7 +49,7 @@ describe('ClaudeCodeProvider.getStatus', () => {
     const status = await claude.getStatus()
 
     expect(status.state).toBe('AVAILABLE')
-    expect(fakeSpawn.last().args).toEqual(['auth', 'status', '--json'])
+    expect(fakeSpawn.last().appArgs).toEqual(['auth', 'status', '--json'])
   })
 
   it('non riporta l’identità dell’account del server', async () => {
@@ -92,15 +92,15 @@ describe('ClaudeCodeProvider.ask', () => {
     await claude.ask(context, 'Conviene a 38?')
 
     const call = fakeSpawn.last()
-    expect(call.args).toContain('--print')
+    expect(call.appArgs).toContain('--print')
     // `--tools ''` disabilita tutti gli strumenti (spec §43).
-    expect(call.args).toContain('--tools')
-    expect(call.args[call.args.indexOf('--tools') + 1]).toBe('')
-    expect(call.args).toContain('--safe-mode')
-    expect(call.args).toContain('--no-session-persistence')
+    expect(call.appArgs).toContain('--tools')
+    expect(call.appArgs[call.appArgs.indexOf('--tools') + 1]).toBe('')
+    expect(call.appArgs).toContain('--safe-mode')
+    expect(call.appArgs).toContain('--no-session-persistence')
     // `--bare` forzerebbe l'autenticazione via ANTHROPIC_API_KEY (spec §34).
-    expect(call.args).not.toContain('--bare')
-    expect(call.args).not.toContain('--dangerously-skip-permissions')
+    expect(call.appArgs).not.toContain('--bare')
+    expect(call.appArgs).not.toContain('--dangerously-skip-permissions')
   })
 
   it('non espone il progetto: la cwd è una cartella temporanea', async () => {
@@ -214,7 +214,7 @@ describe('OpenCodeProvider', () => {
     const status = await opencode.getStatus()
 
     expect(status).toMatchObject({ id: 'opencode', state: 'AVAILABLE', executable: 'opencode' })
-    expect(fakeSpawn.last().args).toEqual(['providers', 'list'])
+    expect(fakeSpawn.last().appArgs).toEqual(['providers', 'list'])
   })
 
   it('NOT_AUTHENTICATED quando nessun provider upstream è configurato', async () => {
@@ -251,9 +251,9 @@ describe('OpenCodeProvider', () => {
     const response = await opencode.ask(context, 'Conviene?')
 
     const call = fakeSpawn.last()
-    expect(call.args).toEqual(['run', '--pure'])
+    expect(call.appArgs).toEqual(['run', '--pure'])
     // `--auto` approverebbe automaticamente l'uso degli strumenti (spec §43).
-    expect(call.args).not.toContain('--auto')
+    expect(call.appArgs).not.toContain('--auto')
     expect(call.stdin).toContain('Conviene?')
     expect(response.providerId).toBe('opencode')
   })
@@ -272,7 +272,7 @@ describe('CodexProvider in modalità locale', () => {
     const status = await codex.getStatus()
 
     expect(status).toMatchObject({ id: 'codex', state: 'AVAILABLE', executable: 'codex' })
-    expect(fakeSpawn.last().args).toEqual(['login', 'status'])
+    expect(fakeSpawn.last().appArgs).toEqual(['login', 'status'])
   })
 
   it('NOT_AUTHENTICATED quando non c’è login', async () => {
@@ -312,17 +312,17 @@ describe('CodexProvider in modalità locale', () => {
     await codex.ask(context, 'Conviene?')
 
     const call = fakeSpawn.last()
-    expect(call.args.slice(0, 2)).toEqual(['exec', '--sandbox'])
-    expect(call.args).toContain('read-only')
-    expect(call.args).toContain('--ephemeral')
-    expect(call.args).toContain('--skip-git-repo-check')
+    expect(call.appArgs.slice(0, 2)).toEqual(['exec', '--sandbox'])
+    expect(call.appArgs).toContain('read-only')
+    expect(call.appArgs).toContain('--ephemeral')
+    expect(call.appArgs).toContain('--skip-git-repo-check')
     // `-` in coda: il prompt arriva da stdin.
-    expect(call.args.at(-1)).toBe('-')
+    expect(call.appArgs.at(-1)).toBe('-')
     // `--cd` punta alla cartella temporanea, non al progetto.
-    expect(call.args[call.args.indexOf('--cd') + 1]).toBe(call.cwd)
+    expect(call.appArgs[call.appArgs.indexOf('--cd') + 1]).toBe(call.cwd)
     // Scartare la config del server disattiverebbe forced_login_method (spec §37).
-    expect(call.args).not.toContain('--ignore-user-config')
-    expect(call.args).not.toContain('--dangerously-bypass-approvals-and-sandbox')
+    expect(call.appArgs).not.toContain('--ignore-user-config')
+    expect(call.appArgs).not.toContain('--dangerously-bypass-approvals-and-sandbox')
   })
 
   it('propaga CODEX_HOME al processo e nient’altro di sensibile', async () => {
@@ -358,7 +358,7 @@ describe('CodexProvider in modalità locale', () => {
 
     // Solo i due probe: nessun `exec`.
     expect(fakeSpawn.calls).toHaveLength(2)
-    expect(fakeSpawn.calls.some((c) => c.args.includes('exec'))).toBe(false)
+    expect(fakeSpawn.calls.some((c) => c.appArgs.includes('exec'))).toBe(false)
   })
 
   it('senza eseguibile fallisce con CLI_NOT_INSTALLED', async () => {

@@ -1,3 +1,4 @@
+import { REVERTABLE_EVENT_TYPES } from '#shared/constants'
 import type {
   AuctionEventType,
   AuctionPlayerStatus,
@@ -14,9 +15,6 @@ const OK: DomainCheck = { ok: true }
 function fail(code: DomainErrorCode): DomainCheck {
   return { ok: false, code }
 }
-
-/** Solo un acquisto e una marcatura SOLD sono annullabili (spec 25). */
-const REVERTABLE_EVENT_TYPES: readonly AuctionEventType[] = ['PLAYER_PURCHASED', 'PLAYER_SOLD']
 
 /**
  * Controlli di acquisto nell'ordine della spec 24: disponibilita, prezzo minimo, slot di ruolo,
@@ -60,6 +58,9 @@ export function checkRevert(event: {
   revertedAt: Date | null
 }): DomainCheck {
   if (event.revertedAt !== null) return fail('EVENT_ALREADY_REVERTED')
-  if (!REVERTABLE_EVENT_TYPES.includes(event.type)) return fail('EVENT_NOT_REVERTABLE')
+  // `some` e non `includes`: la tupla condivisa e di letterali, `event.type` e il tipo largo.
+  if (!REVERTABLE_EVENT_TYPES.some((type) => type === event.type)) {
+    return fail('EVENT_NOT_REVERTABLE')
+  }
   return OK
 }

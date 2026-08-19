@@ -21,7 +21,7 @@ export default withNuxt(
               name: 'exceljs',
               importNames: ['Workbook'],
               message:
-                'Usa `import ExcelJS from \'exceljs\'` e destruttura: l\'export nominato rompe il server buildato.',
+                "Usa `import ExcelJS from 'exceljs'` e destruttura: l'export nominato rompe il server buildato.",
               allowTypeImports: true,
             },
           ],

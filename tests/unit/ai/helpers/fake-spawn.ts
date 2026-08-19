@@ -28,12 +28,25 @@ export interface SpawnScript {
 /** Cosa è stato realmente chiesto al sistema operativo. */
 export interface SpawnCall {
   bin: string
+  /** Argomenti effettivi, prefisso di risoluzione incluso. */
   args: string[]
+  /**
+   * Argomenti del provider, senza il prefisso `cmd.exe /d /c <percorso>` che su
+   * Windows `resolveCommand` aggiunge per gli shim `.cmd`. È questo che va
+   * asserito quando il test parla dei flag della CLI: altrimenti l'asserzione
+   * passerebbe su Linux e fallirebbe su Windows.
+   */
+  appArgs: string[]
   cwd?: string
   env: Record<string, string>
   shell: boolean
   /** Quello che è stato scritto su stdin del processo. */
   stdin: string
+}
+
+/** Rimuove il prefisso dell'interprete batch, se presente. */
+function stripBatchPrefix(args: string[]): string[] {
+  return args[0] === '/d' && args[1] === '/c' ? args.slice(3) : args
 }
 
 class FakeChild extends EventEmitter {
@@ -72,6 +85,7 @@ function createFakeSpawn() {
     const call: SpawnCall = {
       bin,
       args,
+      appArgs: stripBatchPrefix(args),
       cwd: options.cwd,
       env: options.env ?? {},
       shell: options.shell ?? false,

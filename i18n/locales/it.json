@@ -64,6 +64,7 @@
     "ownerOnly": "Solo il proprietario dell'asta può modificare queste impostazioni.",
     "players": "Giocatori in listone",
     "remaining": "Residuo",
+    "remainingSlots": "Slot liberi",
     "roleBudgets": "Budget pianificato per ruolo",
     "roleBudgetsHint": "Facoltativo e consultivo: serve a te, non blocca nulla.",
     "roleSlots": "Slot per ruolo",

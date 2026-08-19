@@ -1,0 +1,181 @@
+import { playerAdviceSchema } from '#shared/schemas'
+import type {
+  AuctionContext,
+  AuctionState,
+  MarketAnalytics,
+  PlayerAdvice,
+  PlayerContext,
+  PlayerRow,
+  RosterPlayerContext,
+  TargetContext,
+} from '#shared/types'
+
+/**
+ * Limiti di default del contesto: il prompt deve restare compatto e rilevante, mai un dump
+ * del database (spec 41). Alzarli costa token su ogni invocazione AI.
+ */
+export const DEFAULT_CONTEXT_LIMITS = { alternatives: 12, targets: 20 } as const
+
+/** Ordina prima le alternative dello stesso ruolo del giocatore in gioco, poi per FVM. */
+function compareAlternatives(role: PlayerContext['role'] | undefined) {
+  return (a: PlayerContext, b: PlayerContext): number => {
+    if (role) {
+      const sameRole = Number(b.role === role) - Number(a.role === role)
+      if (sameRole !== 0) return sameRole
+    }
+    return b.fvm - a.fvm
+  }
+}
+
+/**
+ * Ordina i target per priorita crescente (senza priorita in coda), poi per prezzo massimo
+ * e prezzo target decrescenti. `TargetContext` non porta l'FVM, quindi i prezzi personali
+ * sono il miglior indicatore di importanza disponibile.
+ */
+function compareTargets(a: TargetContext, b: TargetContext): number {
+  const priorityA = a.priority ?? Number.MAX_SAFE_INTEGER
+  const priorityB = b.priority ?? Number.MAX_SAFE_INTEGER
+  if (priorityA !== priorityB) return priorityA - priorityB
+
+  const valueA = a.maxPrice ?? a.targetPrice ?? 0
+  const valueB = b.maxPrice ?? b.targetPrice ?? 0
+  if (valueA !== valueB) return valueB - valueA
+  return a.name.localeCompare(b.name)
+}
+
+/** Riga di listone -> contesto giocatore. `currentBid` e il prezzo in gioco adesso. */
+export function toPlayerContext(row: PlayerRow, currentBid?: number | null): PlayerContext {
+  return {
+    name: row.name,
+    team: row.team,
+    role: row.role,
+    quotation: row.quotation,
+    fvm: row.fvm,
+    appearances: row.appearances,
+    averageRating: row.averageRating,
+    fantasyAverage: row.fantasyAverage,
+    goals: row.goals,
+    assists: row.assists,
+    tier: row.tier,
+    targetPrice: row.targetPrice,
+    maxPrice: row.maxPrice,
+    currentBid: currentBid ?? row.soldPrice ?? null,
+  }
+}
+
+/** Costruisce il contesto compatto passato al provider AI (spec 41). */
+export function buildAuctionContext(input: {
+  auction: { season: string; mode: string }
+  state: AuctionState
+  roster: RosterPlayerContext[]
+  currentPlayer?: PlayerContext
+  targets: TargetContext[]
+  alternatives: PlayerContext[]
+  analytics: MarketAnalytics
+  limits?: { alternatives?: number; targets?: number }
+}): AuctionContext {
+  const alternativesLimit = input.limits?.alternatives ?? DEFAULT_CONTEXT_LIMITS.alternatives
+  const targetsLimit = input.limits?.targets ?? DEFAULT_CONTEXT_LIMITS.targets
+
+  return {
+    auction: {
+      season: input.auction.season,
+      mode: input.auction.mode,
+      initialBudget: input.state.initialBudget,
+      remainingBudget: input.state.remainingBudget,
+      minimumPlayerCost: input.state.minimumPlayerCost,
+      maxBid: input.state.maxBid,
+    },
+    roster: { players: input.roster, slots: input.state.slots },
+    ...(input.currentPlayer ? { currentPlayer: input.currentPlayer } : {}),
+    targets: [...input.targets].sort(compareTargets).slice(0, targetsLimit),
+    availableAlternatives: [...input.alternatives]
+      .sort(compareAlternatives(input.currentPlayer?.role))
+      .slice(0, alternativesLimit),
+    marketAnalytics: input.analytics,
+  }
+}
+
+/**
+ * Prompt finale per la CLI: contesto strutturato + la domanda + le regole di risposta.
+ * Il contesto va come JSON compatto: e completo per costruzione e non richiede un
+ * renderer testuale da tenere allineato al tipo.
+ */
+export function renderContextPrompt(context: AuctionContext, prompt: string): string {
+  return [
+    'You are assisting a single fantasy football (Fantacalcio) manager during a live auction.',
+    'Answer using only the auction context below.',
+    '',
+    'AUCTION CONTEXT (JSON):',
+    JSON.stringify(context),
+    '',
+    'QUESTION:',
+    prompt,
+    '',
+    'RULES:',
+    '- Reply in Italian.',
+    '- Reply with text only. Do not run commands, do not read or write files, do not use any tool.',
+    '- Be concise and concrete: this is read while an auction is running.',
+    '- Never assume prices or statistics that are not in the context above.',
+    '- End the answer with a single JSON block, nothing after it:',
+    '```json',
+    '{"recommendation":"BUY|WAIT|PASS","suggestedMaxPrice":0,"confidence":0.0,"reasoning":"...","alternatives":["..."]}',
+    '```',
+    '- `recommendation` and `reasoning` are required, `reasoning` in Italian.',
+    '- `confidence` is between 0 and 1. `alternatives` holds player names, possibly empty.',
+  ].join('\n')
+}
+
+/** Ogni oggetto JSON bilanciato presente nel testo, ignorando le graffe dentro le stringhe. */
+function jsonCandidates(text: string): string[] {
+  const found: string[] = []
+
+  for (let start = 0; start < text.length; start++) {
+    if (text[start] !== '{') continue
+
+    let depth = 0
+    let inString = false
+    let escaped = false
+
+    for (let index = start; index < text.length; index++) {
+      const char = text[index]
+      if (inString) {
+        if (escaped) escaped = false
+        else if (char === '\\') escaped = true
+        else if (char === '"') inString = false
+        continue
+      }
+      if (char === '"') inString = true
+      else if (char === '{') depth++
+      else if (char === '}' && --depth === 0) {
+        found.push(text.slice(start, index + 1))
+        break
+      }
+    }
+  }
+
+  return found
+}
+
+/**
+ * Estrae e valida l'output strutturato (spec 46). Funziona anche se il JSON e dentro un
+ * fence markdown o circondato da prosa. Se manca o non e valido restituisce solo il testo:
+ * non lancia mai, il fallback testuale e sempre disponibile.
+ */
+export function parseAdvice(rawText: string): { advice?: PlayerAdvice; text: string } {
+  const text = rawText.trim()
+
+  // Dal fondo: i modelli chiudono con il blocco JSON richiesto.
+  for (const candidate of jsonCandidates(text).reverse()) {
+    let value: unknown
+    try {
+      value = JSON.parse(candidate)
+    } catch {
+      continue
+    }
+    const parsed = playerAdviceSchema.safeParse(value)
+    if (parsed.success) return { advice: parsed.data, text }
+  }
+
+  return { text }
+}

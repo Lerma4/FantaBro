@@ -59,6 +59,11 @@ function compareTierKeys(a: string, b: string): number {
 /**
  * Andamento reale del mercato d'asta (spec 31).
  *
+ * **Le medie comprendono i propri acquisti**, non solo i giocatori andati ad altri: sono
+ * prezzi realmente pagati nella stessa asta. Va tenuto presente l'anello di retroazione che
+ * ne deriva: se sovrapago, la media di mercato sale e il confronto successivo dice che quel
+ * prezzo e normale. Chi legge il numero, UI o prompt AI, deve saperlo.
+ *
  * `byRole` ha sempre un bucket per ognuno dei quattro ruoli, anche a zero vendite.
  * `byTier` ha un bucket per ogni tier presente fra i venduti, piu `NO_TIER_BUCKET_KEY`
  * se ci sono venduti senza tier.

@@ -43,7 +43,11 @@ function compareTargets(a: TargetContext, b: TargetContext): number {
   return a.name.localeCompare(b.name)
 }
 
-/** Riga di listone -> contesto giocatore. `currentBid` e il prezzo in gioco adesso. */
+/**
+ * Riga di listone -> contesto giocatore. `currentBid` e il prezzo in gioco **adesso**, e solo
+ * quello: non ricade su `soldPrice`, che e il prezzo a cui un giocatore e uscito dal mercato.
+ * Presentarlo come offerta corrente farebbe ragionare il modello su un'asta che non c'e piu.
+ */
 export function toPlayerContext(row: PlayerRow, currentBid?: number | null): PlayerContext {
   return {
     name: row.name,
@@ -59,7 +63,7 @@ export function toPlayerContext(row: PlayerRow, currentBid?: number | null): Pla
     tier: row.tier,
     targetPrice: row.targetPrice,
     maxPrice: row.maxPrice,
-    currentBid: currentBid ?? row.soldPrice ?? null,
+    currentBid: currentBid ?? null,
   }
 }
 
@@ -71,6 +75,8 @@ export function buildAuctionContext(input: {
   currentPlayer?: PlayerContext
   targets: TargetContext[]
   alternatives: PlayerContext[]
+  /** Giocatori da confrontare: passano cosi come sono, anche se non piu comprabili (spec 30). */
+  comparePlayers?: PlayerContext[]
   analytics: MarketAnalytics
   limits?: { alternatives?: number; targets?: number }
 }): AuctionContext {
@@ -92,6 +98,7 @@ export function buildAuctionContext(input: {
     availableAlternatives: [...input.alternatives]
       .sort(compareAlternatives(input.currentPlayer?.role))
       .slice(0, alternativesLimit),
+    ...(input.comparePlayers?.length ? { comparePlayers: input.comparePlayers } : {}),
     marketAnalytics: input.analytics,
   }
 }
@@ -105,6 +112,11 @@ export function renderContextPrompt(context: AuctionContext, prompt: string): st
   return [
     'You are assisting a single fantasy football (Fantacalcio) manager during a live auction.',
     'Answer using only the auction context below.',
+    '',
+    '`availableAlternatives` are players you can still buy right now.',
+    '`comparePlayers` are players the user asked to compare: some may already be taken or',
+    'sold to another team, so never recommend buying one of them unless it is also listed',
+    'in `availableAlternatives`.',
     '',
     'AUCTION CONTEXT (JSON):',
     JSON.stringify(context),

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { MAX_PRICE_WARNING_RATIO } from '#shared/constants'
-import { evaluatePriceThreshold } from '../../../server/domain/threshold'
+import { evaluatePriceThreshold } from '#shared/utils/threshold'
 
 describe('evaluatePriceThreshold', () => {
   it('senza limiti impostati non segnala nulla', () => {
@@ -19,6 +19,13 @@ describe('evaluatePriceThreshold', () => {
 
   it('segnala il prezzo massimo raggiunto esattamente', () => {
     expect(evaluatePriceThreshold(100, 50, 100)).toBe('AT_MAX')
+  })
+
+  // Il caso che la copia client sbagliava: `price >= maxPrice * ratio` inghiottiva `AT_MAX`.
+  it('distingue il massimo raggiunto dal solo avvicinarsi', () => {
+    expect(evaluatePriceThreshold(50, null, 50)).toBe('AT_MAX')
+    expect(evaluatePriceThreshold(45, null, 50)).toBe('NEAR_MAX')
+    expect(evaluatePriceThreshold(50, null, 50)).not.toBe(evaluatePriceThreshold(45, null, 50))
   })
 
   it('avvisa quando il prezzo si avvicina al massimo', () => {

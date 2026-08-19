@@ -122,6 +122,22 @@ describe('buildAuctionContext', () => {
     expect(context.targets).toHaveLength(1)
   })
 
+  it('tiene i giocatori da confrontare fuori dalle alternative', () => {
+    const context = buildAuctionContext({
+      ...baseInput,
+      alternatives: [player('Disponibile', 'A', 100)],
+      comparePlayers: [player('Venduto', 'A', 300)],
+    })
+
+    expect(context.availableAlternatives.map((entry) => entry.name)).toEqual(['Disponibile'])
+    expect(context.comparePlayers?.map((entry) => entry.name)).toEqual(['Venduto'])
+  })
+
+  it('omette comparePlayers quando non ce ne sono', () => {
+    expect(buildAuctionContext(baseInput).comparePlayers).toBeUndefined()
+    expect(buildAuctionContext({ ...baseInput, comparePlayers: [] }).comparePlayers).toBeUndefined()
+  })
+
   it('non muta gli array di input', () => {
     const alternatives = [player('Basso', 'D', 10), player('Alto', 'A', 300)]
     buildAuctionContext({ ...baseInput, alternatives })
@@ -131,33 +147,40 @@ describe('buildAuctionContext', () => {
 })
 
 describe('toPlayerContext', () => {
-  it('riduce una riga di listone al contesto giocatore', () => {
-    const row: PlayerRow = {
-      playerId: 'p9',
-      name: 'Dimarco',
-      team: 'Inter',
-      role: 'D',
-      mantraRole: 'E',
-      quotation: 18,
-      fvm: 120,
-      status: 'AVAILABLE',
-      soldPrice: null,
-      otherTeamName: null,
-      purchasePrice: null,
-      statsSeason: '2025/26',
-      appearances: 34,
-      averageRating: 6.4,
-      fantasyAverage: 7.1,
-      goals: 5,
-      assists: 8,
-      tier: 'A',
-      targetPrice: 40,
-      maxPrice: 50,
-      priority: 1,
-      isTarget: true,
-      notes: null,
-    }
+  const row: PlayerRow = {
+    playerId: 'p9',
+    name: 'Dimarco',
+    team: 'Inter',
+    role: 'D',
+    mantraRole: 'E',
+    quotation: 18,
+    fvm: 120,
+    status: 'AVAILABLE',
+    soldPrice: null,
+    otherTeamName: null,
+    purchasePrice: null,
+    statsSeason: '2025/26',
+    appearances: 34,
+    averageRating: 6.4,
+    fantasyAverage: 7.1,
+    goals: 5,
+    assists: 8,
+    tier: 'A',
+    targetPrice: 40,
+    maxPrice: 50,
+    priority: 1,
+    isTarget: true,
+    notes: null,
+  }
 
+  const soldRow: PlayerRow = {
+    ...row,
+    status: 'SOLD',
+    soldPrice: 99,
+    otherTeamName: 'Altra Squadra',
+  }
+
+  it('riduce una riga di listone al contesto giocatore', () => {
     expect(toPlayerContext(row, 43)).toEqual({
       name: 'Dimarco',
       team: 'Inter',
@@ -175,6 +198,11 @@ describe('toPlayerContext', () => {
       currentBid: 43,
     })
   })
+
+  it('non presenta il prezzo di vendita come offerta corrente', () => {
+    expect(toPlayerContext(soldRow).currentBid).toBeNull()
+    expect(toPlayerContext(soldRow, 12).currentBid).toBe(12)
+  })
 })
 
 describe('renderContextPrompt', () => {
@@ -189,6 +217,11 @@ describe('renderContextPrompt', () => {
     expect(prompt).toContain('Reply in Italian.')
     expect(prompt).toContain('```json')
     expect(prompt).toContain('"recommendation"')
+  })
+
+  it('spiega che i giocatori da confrontare non sono per forza comprabili', () => {
+    expect(prompt).toContain('`availableAlternatives` are players you can still buy right now.')
+    expect(prompt).toContain('never recommend buying one of them unless it is also listed')
   })
 
   it('vieta esplicitamente comandi, file e tool', () => {

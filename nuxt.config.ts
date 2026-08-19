@@ -47,10 +47,14 @@ export default defineNuxtConfig({
   },
 
   // Senza `host` il server di sviluppo si lega al solo loopback IPv6 (`[::1]`), e un
-  // browser che risolve `localhost` in `127.0.0.1` resta in attesa senza mai ricevere
-  // risposta. `0.0.0.0` copre IPv4 e rende l'app raggiungibile dagli altri dispositivi
-  // della rete locale, comodo per provare l'asta in due su macchine diverse.
-  devServer: { host: '0.0.0.0' },
+  // browser che risolve `localhost` in `127.0.0.1` apre la connessione e resta in attesa:
+  // sembra un server bloccato, ed e invece un server che non ascolta dove lo si cerca.
+  //
+  // Loopback IPv4 esplicito, non `0.0.0.0`: il server di sviluppo espone anche gli
+  // endpoint Vite (HMR, sorgenti, accesso al filesystem di progetto), che non vanno
+  // offerti alla rete locale per default. Per provare l'asta in due su macchine diverse
+  // si usa `pnpm dev --host`, che e una scelta esplicita di chi sviluppa.
+  devServer: { host: '127.0.0.1' },
 
   nitro: {
     experimental: { asyncContext: true },

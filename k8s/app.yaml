@@ -1,0 +1,151 @@
+# FantaBro — Deployment stateless + Service + Ingress.
+#
+# L'app non tiene stato locale: nessun volume persistente, nessuna sessione AI a
+# bordo. Si può scalare a piacere; la sessione Codex vive solo nel worker
+# (spec §37), quindi le repliche non si contendono `auth.json`.
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fantabro
+  namespace: fantabro
+  labels:
+    app.kubernetes.io/name: fantabro
+    app.kubernetes.io/part-of: fantabro
+spec:
+  # 1..N: aumentare liberamente, l'app è stateless.
+  replicas: 2
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: fantabro
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: fantabro
+        app.kubernetes.io/part-of: fantabro
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: app
+          image: REGISTRY/fantabro:0.1.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 3000
+          envFrom:
+            - configMapRef:
+                name: fantabro-config
+            - secretRef:
+                name: fantabro-secrets
+          # Probe sulla radice: l'app risponde appena Nitro è in ascolto.
+          # Se in futuro esiste una route dedicata (es. /api/health), preferirla.
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 20
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 3
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ['ALL']
+          volumeMounts:
+            # Necessario: il layer AI crea una cartella temporanea vuota come
+            # working directory di ogni invocazione CLI, e con la root in sola
+            # lettura senza questo volume `mkdtemp` fallirebbe.
+            - name: tmp
+              mountPath: /tmp
+          resources:
+            requests:
+              cpu: 200m
+              memory: 256Mi
+            limits:
+              cpu: '1'
+              memory: 1Gi
+      volumes:
+        - name: tmp
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: fantabro
+  namespace: fantabro
+  labels:
+    app.kubernetes.io/name: fantabro
+    app.kubernetes.io/part-of: fantabro
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: fantabro
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: fantabro
+  namespace: fantabro
+  labels:
+    app.kubernetes.io/name: fantabro
+    app.kubernetes.io/part-of: fantabro
+  annotations:
+    # LIMITE DURO di upload, e l'unico che esista davvero: Nitro non offre alcuna
+    # opzione di dimensione massima del body, e `readMultipartFormData`
+    # bufferizza il file **interamente in memoria** prima che la route possa
+    # guardarlo. Senza questa annotazione il solo limite è la memoria del pod, e
+    # un upload da 2 GB la esaurisce.
+    #
+    # 16m contro il limite applicativo di 15 MB, e la differenza è voluta: il
+    # body multipart è più grande del file per via di boundary e header di parte,
+    # quindi un limite esterno pari a 15m rifiuterebbe un file da 15 MB valido
+    # prima che la route possa applicare il proprio controllo. Il margine tiene
+    # il rifiuto esterno *sopra* quello applicativo, così l'utente riceve
+    # l'errore di dominio e non un 413 opaco del proxy.
+    #
+    # Con un ingress controller diverso serve l'annotazione equivalente (Traefik:
+    # middleware `buffering.maxRequestBodyBytes`; HAProxy: `client-body-buffer-size`).
+    nginx.ingress.kubernetes.io/proxy-body-size: '16m'
+    # Una risposta AI può richiedere fino a NUXT_AI_TIMEOUT_MS.
+    nginx.ingress.kubernetes.io/proxy-read-timeout: '180'
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - fantabro.example.com
+      secretName: fantabro-tls
+  rules:
+    - host: fantabro.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: fantabro
+                port:
+                  name: http

@@ -1,0 +1,48 @@
+# Dipendenze e artefatti di build: si ricostruiscono nell'immagine.
+node_modules
+**/node_modules
+.nuxt
+.output
+.nitro
+.cache
+dist
+coverage
+.vitest-cache
+*.tsbuildinfo
+
+# Storia git e metadati locali.
+.git
+.gitignore
+.gitattributes
+.github
+
+# Segreti e credenziali — non devono MAI entrare in un layer (spec §39).
+# Un file copiato e poi cancellato resta comunque nella storia dell'immagine.
+.env
+.env.*
+!.env.example
+data
+data/ai
+.data
+**/auth.json
+**/.credentials.json
+**/*.pem
+**/*.key
+**/id_rsa*
+
+# Configurazione locale degli agent e degli editor.
+.claude
+.vscode
+.idea
+
+# Documentazione e meta: non servono a runtime.
+docs
+k8s
+README.md
+AGENTS.md
+orchestration.md
+*.log
+.DS_Store
+
+# Test: l'immagine di produzione non li esegue.
+tests

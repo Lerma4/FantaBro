@@ -8,6 +8,7 @@
     ".nuxt/types/nitro-nuxt.d.ts",
     ".nuxt/types/nitro.d.ts",
     "tests/unit/**/*.ts",
-    "tests/integration/**/*.ts"
+    "tests/integration/**/*.ts",
+    "tests/e2e/**/*.ts"
   ]
 }

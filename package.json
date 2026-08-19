@@ -16,6 +16,8 @@
     "lint:fix": "eslint . --fix",
     "typecheck": "nuxt typecheck",
     "test": "vitest run",
+    "test:integration": "vitest run --project integration",
+    "test:e2e": "vitest run --project e2e",
     "test:watch": "vitest",
     "format": "prettier --write .",
     "format:check": "prettier --check .",

@@ -1,0 +1,66 @@
+# Configurazione non sensibile + esempio di Secret.
+#
+# I valori del Secret qui sono SEGNAPOSTO. Non committare mai credenziali reali
+# (spec §39): in produzione crea il Secret fuori da Git, per esempio
+#   kubectl -n fantabro create secret generic fantabro-secrets \
+#     --from-literal=NUXT_DATABASE_URL=... \
+#     --from-literal=DATABASE_URL=... \
+#     --from-literal=NUXT_BETTER_AUTH_SECRET=...
+# oppure gestiscilo con un External Secrets Operator / Sealed Secrets.
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: fantabro-config
+  namespace: fantabro
+  labels:
+    app.kubernetes.io/part-of: fantabro
+data:
+  HOST: '0.0.0.0'
+  PORT: '3000'
+  NUXT_BETTER_AUTH_URL: 'https://fantabro.example.com'
+
+  # Provider AI. Su Kubernetes `claude` e `opencode` NON sono nell'immagine
+  # dell'app: l'unico provider raggiungibile è Codex, tramite il worker interno.
+  NUXT_AI_DEFAULT_PROVIDER: 'codex'
+  NUXT_AI_TIMEOUT_MS: '120000'
+  NUXT_AI_MAX_PENDING: '8'
+
+  # Nome del Service ClusterIP del worker: nessun Ingress, solo rete interna.
+  # Il nome della variabile segue la mappatura di `runtimeConfig.ai.codexWorkerUrl`.
+  NUXT_AI_CODEX_WORKER_URL: 'http://codex-worker:8787'
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: codex-worker-config
+  namespace: fantabro
+  labels:
+    app.kubernetes.io/part-of: fantabro
+data:
+  CODEX_WORKER_HOST: '0.0.0.0'
+  CODEX_WORKER_PORT: '8787'
+  # Deve coincidere con il mountPath del PersistentVolumeClaim (spec §37).
+  CODEX_HOME: '/var/lib/codex'
+  CODEX_BIN: 'codex'
+  CODEX_WORKER_TIMEOUT_MS: '120000'
+  # Coda interna: la concorrenza è fissa a 1, questo è solo quante richieste
+  # possono attendere prima di ricevere PROVIDER_BUSY.
+  CODEX_WORKER_MAX_PENDING: '8'
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: fantabro-secrets
+  namespace: fantabro
+  labels:
+    app.kubernetes.io/part-of: fantabro
+type: Opaque
+stringData:
+  # SEGNAPOSTO — sostituire fuori dal repository.
+  # Letta dall'applicazione (Nuxt popola runtimeConfig dal prefisso NUXT_).
+  NUXT_DATABASE_URL: 'postgres://REPLACE_ME:REPLACE_ME@postgres:5432/fantabro'
+  # Letta da Drizzle Kit nel Job di migrazione. Stessa stringa.
+  DATABASE_URL: 'postgres://REPLACE_ME:REPLACE_ME@postgres:5432/fantabro'
+  # Segreto di firma delle sessioni: `openssl rand -base64 48`.
+  NUXT_BETTER_AUTH_SECRET: 'REPLACE_ME'

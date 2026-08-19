@@ -1,0 +1,83 @@
+# Codex worker (spec §37).
+#
+# Contiene la CLI Codex e **l'unica** sessione Codex autenticata del deployment.
+# Su Kubernetes gira come StatefulSet con una sola replica e `CODEX_HOME` su
+# PersistentVolume: nessuna altra replica tocca `auth.json`.
+#
+# L'immagine NON contiene credenziali: il login lo fa l'amministratore una volta,
+# contro il pod in esecuzione, e finisce sul volume (vedi k8s/README.md).
+
+# ---------------------------------------------------------------------------
+# Il worker viene impacchettato in un singolo file JS. Così l'immagine finale
+# non porta né `node_modules` (che con Nuxt peserebbe centinaia di MB, tutto
+# inutile qui) né il compilatore TypeScript.
+FROM node:22-bookworm-slim AS build
+ENV PNPM_HOME=/pnpm
+ENV PATH=$PNPM_HOME:$PATH
+RUN corepack enable pnpm
+WORKDIR /app
+
+# esbuild installato in modo esplicito: nel repository è solo una dipendenza
+# transitiva di Vite, quindi il suo eseguibile non è garantito alla radice di
+# `node_modules` — e `--ignore-scripts` qui sotto non ne installerebbe il binario.
+ARG ESBUILD_VERSION=0.28.2
+RUN npm install -g esbuild@${ESBUILD_VERSION}
+
+# Serve solo per risolvere `zod`, l'unica dipendenza runtime del worker.
+# `--ignore-scripts`: il `postinstall` del progetto è `nuxt prepare`, che qui
+# non ha senso e richiederebbe tutti i sorgenti dell'app.
+COPY package.json pnpm-lock.yaml ./
+RUN pnpm install --frozen-lockfile --ignore-scripts
+
+# Solo i moduli puri che il worker usa davvero: il contratto condiviso, il
+# renderer del prompt di dominio e la coda. Nessun codice Nuxt.
+COPY tsconfig.tools.json ./
+COPY shared ./shared
+COPY worker ./worker
+COPY server/domain/ai-context.ts ./server/domain/ai-context.ts
+COPY server/providers/ai/queue.ts ./server/providers/ai/queue.ts
+
+# `--tsconfig` serve a risolvere l'alias `#shared/*`, dichiarato in
+# `tsconfig.tools.json` e non nel tsconfig radice.
+RUN esbuild worker/codex/server.ts \
+      --bundle \
+      --platform=node \
+      --target=node22 \
+      --format=esm \
+      --tsconfig=tsconfig.tools.json \
+      --outfile=/app/dist/codex-worker.mjs
+
+# ---------------------------------------------------------------------------
+# Immagine Debian e non Alpine: la CLI Codex è un binario nativo distribuito via
+# npm e su musl non è garantita.
+FROM node:22-bookworm-slim AS runtime
+
+# Versione fissata: un rollout non deve cambiare in silenzio il comportamento
+# della CLI (e quindi i flag su cui il worker fa affidamento).
+ARG CODEX_VERSION=0.148.0
+RUN npm install -g @openai/codex@${CODEX_VERSION} \
+    && npm cache clean --force
+
+ENV NODE_ENV=production
+# Directory dell'autenticazione persistente (spec §37). Montarla su un volume:
+# senza volume il login non sopravvive al riavvio del container.
+ENV CODEX_HOME=/var/lib/codex
+ENV CODEX_WORKER_HOST=0.0.0.0
+ENV CODEX_WORKER_PORT=8787
+
+WORKDIR /app
+COPY --from=build --chown=node:node /app/dist/codex-worker.mjs ./codex-worker.mjs
+
+# Permessi restrittivi: solo l'utente del worker può leggere le credenziali.
+# `0700` è ciò che rende `auth.json` illeggibile agli altri utenti del container.
+RUN mkdir -p /var/lib/codex \
+    && chown -R node:node /var/lib/codex \
+    && chmod 700 /var/lib/codex
+
+VOLUME ["/var/lib/codex"]
+USER node
+EXPOSE 8787
+
+# Il worker non ha bisogno di `tsx`: il bundle è JS puro senza dipendenze.
+# (Lo script `pnpm worker:codex` resta la via di sviluppo, vedi README.md.)
+CMD ["node", "/app/codex-worker.mjs"]

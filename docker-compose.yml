@@ -1,0 +1,132 @@
+# FantaBro — stack self-hosted per sviluppo e piccole installazioni.
+#
+# Per la produzione su Kubernetes vedi `k8s/`. Qui l'obiettivo è "una macchina,
+# un comando": `docker compose up -d --build`.
+#
+# Le migrazioni sono un servizio dedicato che gira fino in fondo PRIMA dell'app
+# (spec §3): niente migrazioni implicite all'avvio, che con più repliche
+# significherebbe più processi che alterano lo schema insieme.
+
+name: fantabro
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-fantabro}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-fantabro}
+      POSTGRES_DB: ${POSTGRES_DB:-fantabro}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      # `app` e `migrate` partono solo quando il database accetta connessioni.
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-fantabro} -d ${POSTGRES_DB:-fantabro}']
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+    # Nessuna porta esposta all'host: solo la rete interna del compose.
+    expose:
+      - '5432'
+
+  migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: migrate
+    restart: 'no'
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgres://fantabro:fantabro@postgres:5432/fantabro}
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime
+    restart: unless-stopped
+    ports:
+      - '${APP_PORT:-3000}:3000'
+    environment:
+      HOST: 0.0.0.0
+      PORT: '3000'
+      NUXT_DATABASE_URL: ${DATABASE_URL:-postgres://fantabro:fantabro@postgres:5432/fantabro}
+      DATABASE_URL: ${DATABASE_URL:-postgres://fantabro:fantabro@postgres:5432/fantabro}
+      NUXT_BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?BETTER_AUTH_SECRET è obbligatorio}
+      NUXT_BETTER_AUTH_URL: ${BETTER_AUTH_URL:-http://localhost:3000}
+      # In questa immagine `claude` e `opencode` NON sono installati (vedi
+      # Dockerfile): l'unico provider disponibile è Codex tramite il worker.
+      # Per abilitare gli altri due serve un'immagine derivata con le CLI.
+      NUXT_AI_DEFAULT_PROVIDER: ${NUXT_AI_DEFAULT_PROVIDER:-codex}
+      NUXT_AI_TIMEOUT_MS: ${NUXT_AI_TIMEOUT_MS:-120000}
+      NUXT_AI_MAX_PENDING: ${NUXT_AI_MAX_PENDING:-8}
+      NUXT_AI_CODEX_WORKER_URL: http://codex-worker:8787
+    volumes:
+      # Configurazione persistente dei provider AI (spec §39). Sono montati sui
+      # percorsi nativi delle CLI, così funzionano senza variabili aggiuntive
+      # in un'immagine derivata che le installi. Mai in Git, mai in un layer.
+      - ai-claude:/home/node/.claude
+      - ai-opencode-data:/home/node/.local/share/opencode
+      - ai-opencode-config:/home/node/.config/opencode
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        # L'app parte solo se le migrazioni sono andate a buon fine.
+        condition: service_completed_successfully
+      codex-worker:
+        condition: service_started
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://127.0.0.1:3000/').then((r) => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  codex-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.codex-worker
+    restart: unless-stopped
+    environment:
+      CODEX_WORKER_HOST: 0.0.0.0
+      CODEX_WORKER_PORT: '8787'
+      CODEX_HOME: /var/lib/codex
+      CODEX_WORKER_TIMEOUT_MS: ${NUXT_AI_TIMEOUT_MS:-120000}
+      CODEX_WORKER_MAX_PENDING: ${NUXT_AI_MAX_PENDING:-8}
+    volumes:
+      # La sessione Codex autenticata vive qui e deve sopravvivere a riavvii e
+      # ricostruzioni dell'immagine (spec §37).
+      - ai-codex:/var/lib/codex
+    # Nessuna porta pubblicata: raggiungibile solo da `app` sulla rete interna.
+    expose:
+      - '8787'
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://127.0.0.1:8787/healthz').then((r) => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+volumes:
+  postgres-data:
+  # Credenziali dei provider AI: volumi nominati, mai bind mount dal repository.
+  ai-claude:
+  ai-codex:
+  ai-opencode-data:
+  ai-opencode-config:

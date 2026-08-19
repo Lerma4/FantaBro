@@ -1,0 +1,151 @@
+# Codex worker — StatefulSet a UNA replica + Service ClusterIP + NetworkPolicy.
+#
+# Perché StatefulSet e non Deployment: il pod ha identità e storage persistenti
+# (`CODEX_HOME` su PVC). Perché una sola replica: montare lo stesso stato di
+# autenticazione scrivibile in più pod non è concurrency-safe (spec §37).
+#
+# Nessun Ingress. Il worker è raggiungibile solo dall'interno del cluster.
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: codex-worker
+  namespace: fantabro
+  labels:
+    app.kubernetes.io/name: codex-worker
+    app.kubernetes.io/part-of: fantabro
+spec:
+  serviceName: codex-worker
+  # V1: esattamente 1. Non aumentare senza rivedere l'isolamento della sessione.
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: codex-worker
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: codex-worker
+        app.kubernetes.io/part-of: fantabro
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        # `fsGroup` rende il PVC scrivibile dall'utente non root del container:
+        # senza questo il login Codex non riuscirebbe a scrivere `auth.json`.
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: codex-worker
+          image: REGISTRY/fantabro-codex-worker:0.1.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8787
+          envFrom:
+            - configMapRef:
+                name: codex-worker-config
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 3
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 3
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ['ALL']
+          volumeMounts:
+            # Autenticazione Codex persistente: deve sopravvivere a riavvio del
+            # pod, ricreazione, rollout e riavvio del nodo (spec §37).
+            - name: codex-home
+              mountPath: /var/lib/codex
+            # Working directory temporanea di ogni invocazione `codex exec`.
+            - name: tmp
+              mountPath: /tmp
+            # HOME scrivibile ma effimero: le CLI ci scrivono cache. Ciò che
+            # conta davvero (auth.json, config.toml) sta in CODEX_HOME.
+            - name: home
+              mountPath: /home/node
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: '1'
+              memory: 1Gi
+      # Tempo per far finire la richiesta in corso su SIGTERM prima del SIGKILL.
+      terminationGracePeriodSeconds: 60
+      volumes:
+        - name: tmp
+          emptyDir: {}
+        - name: home
+          emptyDir: {}
+  volumeClaimTemplates:
+    - metadata:
+        name: codex-home
+        labels:
+          app.kubernetes.io/part-of: fantabro
+      spec:
+        accessModes: ['ReadWriteOnce']
+        # Impostare la StorageClass del cluster; omessa = quella di default.
+        # storageClassName: standard
+        resources:
+          requests:
+            storage: 1Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: codex-worker
+  namespace: fantabro
+  labels:
+    app.kubernetes.io/name: codex-worker
+    app.kubernetes.io/part-of: fantabro
+spec:
+  # ClusterIP e nient'altro: nessun Ingress, nessun LoadBalancer, nessun NodePort.
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: codex-worker
+  ports:
+    - name: http
+      port: 8787
+      targetPort: http
+---
+# Solo FantaBro può parlare col worker. Senza questa policy qualunque pod del
+# cluster potrebbe usare la sessione Codex autenticata.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: codex-worker-ingress
+  namespace: fantabro
+  labels:
+    app.kubernetes.io/part-of: fantabro
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: codex-worker
+  # Solo Ingress: l'uscita resta libera, perché il worker deve raggiungere
+  # ChatGPT/Codex e il DNS. Elencare `Egress` qui bloccherebbe entrambi.
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: fantabro
+      ports:
+        - protocol: TCP
+          port: 8787

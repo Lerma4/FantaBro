@@ -29,6 +29,18 @@ export default defineConfig({
       },
       await defineVitestProject({
         test: {
+          name: 'e2e',
+          include: ['tests/e2e/**/*.spec.ts'],
+          // Server Nitro reale + PostgreSQL reale: e la sola prova che route,
+          // autenticazione, transazioni e servizi si compongano davvero.
+          // Si auto-salta senza DATABASE_URL, come i test di integrazione.
+          environment: 'node',
+          testTimeout: 60_000,
+          hookTimeout: 120_000,
+        },
+      }),
+      await defineVitestProject({
+        test: {
           name: 'component',
           include: ['tests/component/**/*.spec.ts'],
           environment: 'nuxt',

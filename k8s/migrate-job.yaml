@@ -1,0 +1,70 @@
+# Migrazioni Drizzle applicate PRIMA che la nuova versione dell'app serva
+# traffico (spec §3 lo richiede esplicitamente).
+#
+# Perché un Job e non un initContainer del Deployment: con più repliche
+# l'initContainer girerebbe una volta per replica, cioè più processi che
+# alterano lo schema insieme. Il Job gira una volta sola per release.
+#
+# ORDINE DI DEPLOY — il nome contiene la versione, così ogni release ha il
+# proprio Job (un Job completato è immutabile e non si può riapplicare):
+#   1. kubectl -n fantabro apply -f migrate-job.yaml
+#   2. kubectl -n fantabro wait --for=condition=complete job/fantabro-migrate-0-1-0 --timeout=300s
+#   3. kubectl -n fantabro apply -f app.yaml
+#
+# Se il passo 2 non riesce, NON procedere: l'app girerebbe su uno schema che non
+# corrisponde al codice.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  # Aggiornare il suffisso a ogni release.
+  name: fantabro-migrate-0-1-0
+  namespace: fantabro
+  labels:
+    app.kubernetes.io/name: fantabro-migrate
+    app.kubernetes.io/part-of: fantabro
+    app.kubernetes.io/version: '0.1.0'
+spec:
+  backoffLimit: 2
+  # Il Job resta visibile un'ora per l'ispezione, poi si ripulisce da sé.
+  ttlSecondsAfterFinished: 3600
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: fantabro-migrate
+        app.kubernetes.io/part-of: fantabro
+    spec:
+      restartPolicy: Never
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: migrate
+          # Stage `migrate` del Dockerfile: contiene drizzle-kit, la config e i
+          # file di migrazione, che nell'immagine di runtime non ci sono.
+          image: REGISTRY/fantabro-migrate:0.1.0
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - secretRef:
+                name: fantabro-secrets
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ['ALL']
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+      volumes:
+        # Root in sola lettura: serve una scratch scrivibile.
+        - name: tmp
+          emptyDir: {}

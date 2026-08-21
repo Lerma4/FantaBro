@@ -13,6 +13,16 @@ const { betterAuthSecret, betterAuthUrl } = useRuntimeConfig()
 const secret = betterAuthSecret || process.env.BETTER_AUTH_SECRET
 const baseURL = process.env.NUXT_BETTER_AUTH_URL || process.env.BETTER_AUTH_URL || betterAuthUrl
 
+// Better Auth confronta l'header `Origin` con `baseURL` e rifiuta il resto
+// ("Invalid origin"). In sviluppo pero la porta non e garantita: se la 3000 e
+// occupata Nuxt sale a 3001, 3002..., e il browser puo arrivare sia da
+// `localhost` sia da `127.0.0.1`. Nessuna delle due combinazioni coincide con
+// `baseURL`, e il login smette di funzionare senza che nulla sia rotto.
+//
+// Il loopback su qualsiasi porta e fidato solo qui: in produzione l'origin
+// valida resta una sola, quella di `baseURL`.
+const trustedOrigins = import.meta.dev ? ['http://localhost:*', 'http://127.0.0.1:*'] : []
+
 /**
  * Better Auth con adapter Drizzle.
  *
@@ -31,6 +41,7 @@ export const auth = betterAuth({
   }),
   secret,
   baseURL,
+  trustedOrigins,
   emailAndPassword: {
     enabled: true,
     disableSignUp: true,

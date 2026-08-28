@@ -1,5 +1,5 @@
-import { and, desc, eq, inArray, lt, sql } from 'drizzle-orm'
-import type { PlayerSeasonStats } from '#shared/types'
+import { and, count, desc, eq, inArray, lt, max, sql } from 'drizzle-orm'
+import type { PlayerSeasonStats, StatsImportSummary } from '#shared/types'
 import { normalizeName } from '#shared/utils/normalize'
 import { playerSeasonStats, players } from '../database/schema'
 import type { DbOrTx } from '../utils/db'
@@ -88,4 +88,59 @@ export async function resolvePlayerIdsByName(
     .where(and(eq(players.season, season), inArray(players.searchName, normalized)))
 
   return new Map(rows.map((row) => [row.searchName, row.id]))
+}
+
+/**
+ * Cosa risulta importato come statistiche per un listone: una riga per stagione di
+ * dati. Passa dai `players` della stagione del listone perche le statistiche non
+ * hanno un legame diretto con l'asta: ce l'hanno solo con i giocatori.
+ */
+export async function summarizeStats(
+  db: DbOrTx,
+  listoneSeason: string
+): Promise<StatsImportSummary[]> {
+  const rows = await db
+    .select({
+      season: playerSeasonStats.season,
+      players: count(),
+      providers: sql<string[]>`array_agg(distinct ${playerSeasonStats.provider})`,
+      updatedAt: max(playerSeasonStats.updatedAt),
+    })
+    .from(playerSeasonStats)
+    .innerJoin(players, eq(players.id, playerSeasonStats.playerId))
+    .where(eq(players.season, listoneSeason))
+    .groupBy(playerSeasonStats.season)
+    .orderBy(desc(playerSeasonStats.season))
+
+  return rows.map((row) => ({
+    season: row.season,
+    players: row.players,
+    providers: [...row.providers].sort(),
+    updatedAt: row.updatedAt?.toISOString() ?? null,
+  }))
+}
+
+/**
+ * Cancella le statistiche di **una** stagione di dati, limitate ai giocatori del
+ * listone indicato: stagioni diverse non si toccano mai fra loro (spec 12).
+ */
+export async function deleteStatsForSeason(
+  db: DbOrTx,
+  listoneSeason: string,
+  statsSeason: string
+): Promise<number> {
+  const rows = await db
+    .delete(playerSeasonStats)
+    .where(
+      and(
+        eq(playerSeasonStats.season, statsSeason),
+        inArray(
+          playerSeasonStats.playerId,
+          db.select({ id: players.id }).from(players).where(eq(players.season, listoneSeason))
+        )
+      )
+    )
+    .returning({ playerId: playerSeasonStats.playerId })
+
+  return rows.length
 }

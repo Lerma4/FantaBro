@@ -12,6 +12,12 @@ const m = vi.hoisted(() => ({
   resolvePlayerIdsByName: vi.fn(),
   upsertSeasonStats: vi.fn(),
   publishAuctionChange: vi.fn(),
+  summarizeListone: vi.fn(),
+  countCommittedForSeason: vi.fn(),
+  deletePlayersForSeason: vi.fn(),
+  summarizeStats: vi.fn(),
+  deleteStatsForSeason: vi.fn(),
+  listAuctionIdsForSeason: vi.fn(),
 }))
 
 vi.mock('../../../server/utils/db', () => ({
@@ -25,7 +31,15 @@ vi.mock('../../../server/providers/players', () => ({
 vi.mock('../../../server/providers/statistics/excel', () => ({
   parseStatsWorkbook: m.parseStatsWorkbook,
 }))
-vi.mock('../../../server/repositories/players', () => ({ upsertPlayers: m.upsertPlayers }))
+vi.mock('../../../server/repositories/players', () => ({
+  upsertPlayers: m.upsertPlayers,
+  summarizeListone: m.summarizeListone,
+  countCommittedForSeason: m.countCommittedForSeason,
+  deletePlayersForSeason: m.deletePlayersForSeason,
+}))
+vi.mock('../../../server/repositories/auctions', () => ({
+  listAuctionIdsForSeason: m.listAuctionIdsForSeason,
+}))
 vi.mock('../../../server/repositories/auctionPlayers', () => ({
   ensureAuctionPlayers: m.ensureAuctionPlayers,
 }))
@@ -33,10 +47,19 @@ vi.mock('../../../server/repositories/events', () => ({ appendEvent: m.appendEve
 vi.mock('../../../server/repositories/stats', () => ({
   resolvePlayerIdsByName: m.resolvePlayerIdsByName,
   upsertSeasonStats: m.upsertSeasonStats,
+  summarizeStats: m.summarizeStats,
+  deleteStatsForSeason: m.deleteStatsForSeason,
 }))
 
-const { confirmImport, importPreviewToken, importStats, previewImport } =
-  await import('../../../server/services/import')
+const {
+  confirmImport,
+  getImportState,
+  importPreviewToken,
+  importStats,
+  previewImport,
+  wipeListone,
+  wipeStats,
+} = await import('../../../server/services/import')
 
 const auction = makeAuction()
 const buffer = Buffer.from('listone-xlsx')
@@ -89,6 +112,7 @@ beforeEach(() => {
   m.loadPlayers.mockResolvedValue(importResult())
   m.upsertPlayers.mockResolvedValue({ inserted: 1, updated: 0, playerIds: ['player-1'] })
   m.appendEvent.mockResolvedValue({ id: 'event-import' })
+  m.listAuctionIdsForSeason.mockResolvedValue([])
 })
 
 describe('previewImport / confirmImport', () => {
@@ -272,5 +296,67 @@ describe('importStats', () => {
     ).rejects.toMatchObject({ name: 'DomainError', code: 'IMPORT_MISSING_COLUMNS' })
 
     expect(m.upsertSeasonStats).not.toHaveBeenCalled()
+  })
+})
+
+describe('getImportState', () => {
+  it('mette insieme listone e statistiche della stagione', async () => {
+    const importedAt = '2026-08-20T09:00:00.000Z'
+    m.summarizeListone.mockResolvedValue({ total: 513, updatedAt: importedAt })
+    m.countCommittedForSeason.mockResolvedValue(2)
+    m.summarizeStats.mockResolvedValue([
+      { season: '2025/26', players: 380, providers: ['excel'], updatedAt: importedAt },
+    ])
+
+    const state = await getImportState('2026/27')
+
+    expect(state).toEqual({
+      players: { season: '2026/27', total: 513, committed: 2, updatedAt: importedAt },
+      stats: [{ season: '2025/26', players: 380, providers: ['excel'], updatedAt: importedAt }],
+    })
+  })
+
+  it('senza listone importato torna players a null', async () => {
+    m.summarizeListone.mockResolvedValue({ total: 0, updatedAt: null })
+    m.countCommittedForSeason.mockResolvedValue(0)
+    m.summarizeStats.mockResolvedValue([])
+
+    expect(await getImportState('2026/27')).toEqual({ players: null, stats: [] })
+  })
+})
+
+describe('wipeListone', () => {
+  it('rifiuta se un giocatore della stagione e gia impegnato', async () => {
+    m.countCommittedForSeason.mockResolvedValue(3)
+
+    await expect(wipeListone('2026/27')).rejects.toMatchObject({
+      name: 'DomainError',
+      code: 'LISTONE_IN_USE',
+    })
+    expect(m.deletePlayersForSeason).not.toHaveBeenCalled()
+  })
+
+  it('cancella il listone e fa ricaricare ogni asta della stagione', async () => {
+    m.countCommittedForSeason.mockResolvedValue(0)
+    m.deletePlayersForSeason.mockResolvedValue(513)
+    m.listAuctionIdsForSeason.mockResolvedValue(['asta-1', 'asta-2'])
+
+    expect(await wipeListone('2026/27')).toEqual({ deleted: 513 })
+
+    expect(m.deletePlayersForSeason).toHaveBeenCalledWith(m.tx, '2026/27')
+    expect(m.publishAuctionChange).toHaveBeenCalledTimes(2)
+    expect(m.publishAuctionChange).toHaveBeenCalledWith(m.tx, 'asta-1', { playerIds: [] })
+  })
+})
+
+describe('wipeStats', () => {
+  it('cancella solo la stagione di dati indicata e ricarica le aste', async () => {
+    m.deleteStatsForSeason.mockResolvedValue(380)
+    m.listAuctionIdsForSeason.mockResolvedValue(['asta-1'])
+
+    expect(await wipeStats('2026/27', '2025/26')).toEqual({ deleted: 380 })
+
+    expect(m.deleteStatsForSeason).toHaveBeenCalledWith(m.tx, '2026/27', '2025/26')
+    expect(m.publishAuctionChange).toHaveBeenCalledWith(m.tx, 'asta-1', { playerIds: [] })
   })
 })

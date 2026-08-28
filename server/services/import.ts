@@ -4,16 +4,28 @@ import type {
   Auction,
   ColumnMapping,
   ImportRowIssue,
+  ImportState,
   PlayerImportResult,
   PlayerSeasonStats,
 } from '#shared/types'
 import { getPlayerDataProvider } from '../providers/players'
 import { parseStatsWorkbook } from '../providers/statistics/excel'
 import { ensureAuctionPlayers } from '../repositories/auctionPlayers'
+import { listAuctionIdsForSeason } from '../repositories/auctions'
 import { appendEvent } from '../repositories/events'
-import { upsertPlayers } from '../repositories/players'
-import { resolvePlayerIdsByName, upsertSeasonStats } from '../repositories/stats'
-import { withTransaction } from '../utils/db'
+import {
+  countCommittedForSeason,
+  deletePlayersForSeason,
+  summarizeListone,
+  upsertPlayers,
+} from '../repositories/players'
+import {
+  deleteStatsForSeason,
+  resolvePlayerIdsByName,
+  summarizeStats,
+  upsertSeasonStats,
+} from '../repositories/stats'
+import { type DbOrTx, db, withTransaction } from '../utils/db'
 import { DomainError } from '../utils/errors'
 import { publishAuctionChange } from '../utils/events'
 
@@ -227,4 +239,64 @@ export async function importStats(input: ImportStatsInput): Promise<ImportStatsR
 
     return { imported, unmatched, issues: parsed.issues }
   })
+}
+
+/* ------------------------------------------------------ stato e cancellazioni */
+
+/**
+ * Cosa risulta importato per una stagione. Listone e statistiche sono due import
+ * distinti, quindi vengono riportati separati e si cancellano separati.
+ */
+export async function getImportState(season: string): Promise<ImportState> {
+  const [listone, committed, stats] = await Promise.all([
+    summarizeListone(db, season),
+    countCommittedForSeason(db, season),
+    summarizeStats(db, season),
+  ])
+
+  return {
+    players:
+      listone.total > 0
+        ? { season, total: listone.total, committed, updatedAt: listone.updatedAt }
+        : null,
+    stats,
+  }
+}
+
+/**
+ * Cancella l'intero listone di una stagione. Come la rimozione del singolo giocatore
+ * e un'operazione **globale sulla stagione**: le FK in cascade portano via statistiche,
+ * stato d'asta e target di ogni asta che la condivide. Per questo basta un giocatore
+ * impegnato per rifiutare tutto: un'asta gia giocata non si perde per un click.
+ */
+export async function wipeListone(season: string): Promise<{ deleted: number }> {
+  return withTransaction(async (tx) => {
+    if ((await countCommittedForSeason(tx, season)) > 0) throw new DomainError('LISTONE_IN_USE')
+
+    const deleted = await deletePlayersForSeason(tx, season)
+    await reloadSeason(tx, season)
+    return { deleted }
+  })
+}
+
+/**
+ * Cancella le statistiche di una sola stagione di dati. Nessun vincolo: sono dati
+ * derivati, non spostano ne budget ne rose, e si ri-importano dal foglio.
+ */
+export async function wipeStats(season: string, statsSeason: string): Promise<{ deleted: number }> {
+  return withTransaction(async (tx) => {
+    const deleted = await deleteStatsForSeason(tx, season, statsSeason)
+    await reloadSeason(tx, season)
+    return { deleted }
+  })
+}
+
+/**
+ * `playerIds: []` e la convenzione "ricarica tutto" (vedi `utils/events`), l'unica
+ * corretta dopo una cancellazione: non esistono piu righe da aggiornare in posto.
+ */
+async function reloadSeason(tx: DbOrTx, season: string): Promise<void> {
+  for (const auctionId of await listAuctionIdsForSeason(tx, season)) {
+    await publishAuctionChange(tx, auctionId, { playerIds: [] })
+  }
 }

@@ -115,3 +115,28 @@ export interface MarketAnalytics {
 export interface PlayerComparison {
   players: PlayerRow[]
 }
+
+/** Una stagione di statistiche agganciata al listone corrente (spec 12). */
+export interface StatsImportSummary {
+  season: string
+  /** Giocatori del listone che hanno statistiche per quella stagione. */
+  players: number
+  providers: string[]
+  updatedAt: string | null
+}
+
+/**
+ * Cosa risulta importato per una stagione: il listone e le statistiche, che sono
+ * due import distinti e si cancellano separatamente. `players` e `null` quando il
+ * listone di quella stagione non e mai stato importato (o e stato cancellato).
+ */
+export interface ImportState {
+  players: {
+    season: string
+    total: number
+    /** Giocatori gia acquistati: finche non e 0 il listone non si puo cancellare. */
+    committed: number
+    updatedAt: string | null
+  } | null
+  stats: StatsImportSummary[]
+}

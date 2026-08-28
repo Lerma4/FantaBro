@@ -490,6 +490,29 @@ describe('flusso d asta end to end', async () => {
     expect(spent).toBe(70)
     expect(spent).toBeLessThanOrEqual(auction.initialBudget)
   })
+
+  /**
+   * Rimozione dal listone (solo ADMIN). L'utente seed **e** ADMIN, quindi qui si prova la
+   * cancellazione vera e il rifiuto su un giocatore gia impegnato: le FK verso `players`
+   * sono in cascade, e senza il rifiuto un acquisto sparirebbe insieme al giocatore.
+   */
+  step('14. rimuove dal listone solo i giocatori che nessuna asta ha impegnato', async () => {
+    // Dimarco: comprato al passo 6 e annullato al passo 10, quindi di nuovo libero.
+    const removed = await call(`/api/players/${id('Dimarco')}`, { method: 'DELETE' })
+    expect(removed.status).toBe(200)
+    expect(await availableNames()).not.toContain('Dimarco')
+
+    // Bastoni e in rosa dal passo 12, Barella e segnato SOLD dal passo 9.
+    for (const name of ['Bastoni', 'Barella']) {
+      const refused = await call(`/api/players/${id(name)}`, { method: 'DELETE' })
+      expect(refused.status, name).toBe(409)
+      expect(errorCode(refused.body), name).toBe('PLAYER_IN_USE')
+    }
+
+    // I due rifiuti non hanno cancellato niente: la rosa dei passi 12 e 13 e intatta.
+    const roster = await call(`/api/auctions/${auction.id}/roster`)
+    expect(roster.body.players as { playerId: string }[]).toHaveLength(2)
+  })
 })
 
 /**

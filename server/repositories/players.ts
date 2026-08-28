@@ -1,4 +1,18 @@
-import { type SQL, and, asc, count, eq, gte, inArray, like, lte, sql } from 'drizzle-orm'
+import {
+  type SQL,
+  and,
+  asc,
+  count,
+  eq,
+  exists,
+  gte,
+  inArray,
+  like,
+  lte,
+  max,
+  or,
+  sql,
+} from 'drizzle-orm'
 import type { PlayerListFilter } from '#shared/schemas'
 import type { AuctionPlayerStatus, ParsedPlayer, Player, PlayerRow } from '#shared/types'
 import { normalizeName } from '#shared/utils/normalize'
@@ -70,6 +84,118 @@ export async function upsertPlayers(
 export async function findPlayerById(db: DbOrTx, playerId: string): Promise<Player | null> {
   const [row] = await db.select().from(players).where(eq(players.id, playerId)).limit(1)
   return row ?? null
+}
+
+/**
+ * Lock esclusivo sulla riga di listone, per la cancellazione (spec §48).
+ *
+ * `for update` e non `for no key update`: qui il fatto che un `FOR UPDATE` blocchi
+ * anche gli insert che referenziano la riga (la verifica di FK prende `FOR KEY SHARE`,
+ * in conflitto con `FOR UPDATE`) e' esattamente l'effetto voluto. Senza, un acquisto
+ * concorrente potrebbe committare fra il controllo di `isPlayerCommitted` e la
+ * `DELETE`, e la cascata si porterebbe via la riga di rosa appena creata, in silenzio.
+ *
+ * Va chiamata dentro una transazione, altrimenti il lock e' rilasciato subito.
+ */
+export async function lockPlayer(db: DbOrTx, playerId: string): Promise<Player | null> {
+  const [row] = await db
+    .select()
+    .from(players)
+    .where(eq(players.id, playerId))
+    .limit(1)
+    .for('update')
+  return row ?? null
+}
+
+/**
+ * Il giocatore e' impegnato da almeno un'asta: comprato in rosa, oppure segnato
+ * venduto ad altri. Le FK verso `players` sono tutte in cascade, quindi cancellarlo
+ * dal listone cancellerebbe anche quell'acquisto o quel SOLD senza lasciare traccia,
+ * falsando budget e analytics di mercato. Meglio rifiutare: l'annullo dell'operazione
+ * d'asta esiste gia' ed e' reversibile, la cancellazione dal listone no.
+ */
+export async function isPlayerCommitted(db: DbOrTx, playerId: string): Promise<boolean> {
+  const [inRoster] = await db
+    .select({ playerId: rosterPlayers.playerId })
+    .from(rosterPlayers)
+    .where(eq(rosterPlayers.playerId, playerId))
+    .limit(1)
+  if (inRoster) return true
+
+  const [sold] = await db
+    .select({ playerId: auctionPlayers.playerId })
+    .from(auctionPlayers)
+    .where(and(eq(auctionPlayers.playerId, playerId), eq(auctionPlayers.status, 'SOLD')))
+    .limit(1)
+  return sold !== undefined
+}
+
+/** Cancella una riga di listone. `false` se non c'era piu' nulla da cancellare. */
+export async function deletePlayer(db: DbOrTx, playerId: string): Promise<boolean> {
+  const rows = await db
+    .delete(players)
+    .where(eq(players.id, playerId))
+    .returning({ id: players.id })
+  return rows.length > 0
+}
+
+/**
+ * Riepilogo del listone di una stagione: quanti giocatori e quando sono stati
+ * scritti l'ultima volta. Serve alla pagina di import per dire cosa c'e gia dentro.
+ */
+export async function summarizeListone(
+  db: DbOrTx,
+  season: string
+): Promise<{ total: number; updatedAt: string | null }> {
+  const [row] = await db
+    .select({ total: count(), updatedAt: max(players.updatedAt) })
+    .from(players)
+    .where(eq(players.season, season))
+
+  return { total: row?.total ?? 0, updatedAt: row?.updatedAt?.toISOString() ?? null }
+}
+
+/**
+ * Quanti giocatori della stagione sono impegnati in una qualsiasi asta. Stesse due
+ * condizioni di `isPlayerCommitted`, applicate all'intera stagione: e il controllo che
+ * blocca la cancellazione in blocco del listone.
+ */
+export async function countCommittedForSeason(db: DbOrTx, season: string): Promise<number> {
+  const [row] = await db
+    .select({ total: count() })
+    .from(players)
+    .where(
+      and(
+        eq(players.season, season),
+        or(
+          exists(
+            db
+              .select({ one: sql`1` })
+              .from(rosterPlayers)
+              .where(eq(rosterPlayers.playerId, players.id))
+          ),
+          exists(
+            db
+              .select({ one: sql`1` })
+              .from(auctionPlayers)
+              .where(
+                and(eq(auctionPlayers.playerId, players.id), eq(auctionPlayers.status, 'SOLD'))
+              )
+          )
+        )
+      )
+    )
+
+  return row?.total ?? 0
+}
+
+/** Cancella l'intero listone di una stagione. Ritorna quante righe sono sparite. */
+export async function deletePlayersForSeason(db: DbOrTx, season: string): Promise<number> {
+  const rows = await db
+    .delete(players)
+    .where(eq(players.season, season))
+    .returning({ id: players.id })
+  return rows.length
 }
 
 export async function countPlayersForSeason(db: DbOrTx, season: string): Promise<number> {

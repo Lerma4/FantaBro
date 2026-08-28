@@ -66,6 +66,18 @@ export async function listAuctionsForUser(db: DbOrTx, userId: string): Promise<A
 }
 
 /**
+ * Aste che condividono un listone. Il listone è per stagione, non per asta:
+ * chi lo modifica deve notificare tutte le aste che lo stanno guardando.
+ */
+export async function listAuctionIdsForSeason(db: DbOrTx, season: string): Promise<string[]> {
+  const rows = await db
+    .select({ id: auctions.id })
+    .from(auctions)
+    .where(eq(auctions.season, season))
+  return rows.map((row) => row.id)
+}
+
+/**
  * Crea l'asta insieme alla sua rosa (spec §19: una rosa per asta) e alla
  * membership OWNER del creatore, così l'invariante non dipende dal chiamante.
  */

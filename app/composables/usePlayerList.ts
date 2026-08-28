@@ -138,6 +138,13 @@ export function usePlayerList(auctionId: string) {
     }, delay)
   }
 
+  /** Toglie una riga dalla lista mostrata, tenendo il totale allineato. */
+  function removeRow(playerId: string) {
+    const before = rows.value.length
+    rows.value = rows.value.filter((r) => r.playerId !== playerId)
+    if (rows.value.length < before) total.value = Math.max(0, total.value - 1)
+  }
+
   /**
    * Applica al posto giusto la riga tornata da una scrittura: se non rientra
    * piu nel filtro corrente sparisce dalla lista, senza rifare la fetch.
@@ -147,12 +154,7 @@ export function usePlayerList(auctionId: string) {
     const stillMatches =
       (f.status === 'ALL' || f.status === row.status) && (!f.onlyTargets || row.isTarget)
 
-    if (!stillMatches) {
-      const before = rows.value.length
-      rows.value = rows.value.filter((r) => r.playerId !== row.playerId)
-      if (rows.value.length < before) total.value = Math.max(0, total.value - 1)
-      return
-    }
+    if (!stillMatches) return removeRow(row.playerId)
     rows.value = rows.value.map((r) => (r.playerId === row.playerId ? row : r))
   }
 
@@ -180,6 +182,7 @@ export function usePlayerList(auctionId: string) {
     activeFilterCount,
     fetchRows,
     applyRow,
+    removeRow,
     invalidate,
     resetFilters,
   }

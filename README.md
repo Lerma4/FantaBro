@@ -62,6 +62,12 @@ feature che ha cambiato lo schema.
 Non esiste registrazione pubblica: il primo account si crea con `pnpm db:seed` e
 gli altri utenti li invita un ADMIN.
 
+Un ADMIN può anche **rimuovere un giocatore dal listone**, dal cestino in fondo alla
+sua riga. È un'operazione sulla **stagione**, non sull'asta da cui parte: il giocatore
+sparisce da tutte le aste di quella stagione, insieme a statistiche e target, e si torna
+indietro solo re-importando l'Excel. Un giocatore già in rosa o segnato venduto ad altri
+viene rifiutato: annulla prima quell'operazione dal registro d'asta.
+
 #### Attenzione: il giornale delle migrazioni non sta in `public`
 
 Drizzle tiene il registro delle migrazioni applicate in uno schema **separato**,

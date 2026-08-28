@@ -10,16 +10,22 @@ const props = defineProps<{
 const emit = defineEmits<{
   applied: [payload: { state: AuctionState; row: PlayerRow }]
   updated: [row: PlayerRow]
+  removed: [playerId: string]
   'toggle-select': [playerId: string]
 }>()
 
 const { t } = useI18n()
 const { n, d } = useFormat()
 const toastError = useToastError()
+const toastOk = useToastOk()
+/** Rimuovere dal listone e' amministrazione della stagione, non dell'asta (spec 8). */
+const { isAdmin } = useCurrentUser()
 
 const buyOpen = ref(false)
 const soldOpen = ref(false)
+const removeOpen = ref(false)
 const targeting = ref(false)
+const removing = ref(false)
 
 const available = computed(() => props.row.status === 'AVAILABLE')
 
@@ -54,6 +60,20 @@ async function toggleTarget() {
     toastError(err)
   } finally {
     targeting.value = false
+  }
+}
+
+async function remove() {
+  removing.value = true
+  try {
+    await apiFetch(`/api/players/${props.row.playerId}`, { method: 'DELETE' })
+    toastOk(t('players.removed', { name: props.row.name }))
+    removeOpen.value = false
+    emit('removed', props.row.playerId)
+  } catch (err) {
+    toastError(err)
+  } finally {
+    removing.value = false
   }
 }
 </script>
@@ -169,6 +189,31 @@ async function toggleTarget() {
         :to="`/auctions/${auctionId}/players/${row.playerId}`"
         :aria-label="`${t('players.details')}: ${row.name}`"
       />
+
+      <!-- Cancellazione dal listone: solo ADMIN, e solo dietro conferma esplicita. -->
+      <UPopover v-if="isAdmin" v-model:open="removeOpen" :content="{ align: 'end' }">
+        <UButton
+          size="xs"
+          color="error"
+          variant="ghost"
+          icon="i-lucide-trash-2"
+          :aria-label="`${t('players.remove')}: ${row.name}`"
+        />
+        <template #content>
+          <div class="w-72 space-y-3 p-3">
+            <p class="etichetta">{{ t('players.removeTitle', { name: row.name }) }}</p>
+            <p class="text-xs opacity-70">{{ t('players.removeWarning') }}</p>
+            <div class="flex justify-end gap-2">
+              <UButton color="neutral" variant="ghost" @click="removeOpen = false">
+                {{ t('common.cancel') }}
+              </UButton>
+              <UButton color="error" icon="i-lucide-trash-2" :loading="removing" @click="remove">
+                {{ t('players.removeConfirm') }}
+              </UButton>
+            </div>
+          </div>
+        </template>
+      </UPopover>
     </div>
   </div>
 </template>

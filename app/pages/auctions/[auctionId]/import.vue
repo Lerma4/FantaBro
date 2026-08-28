@@ -3,6 +3,7 @@ import { REQUIRED_IMPORT_FIELDS } from '#shared/schemas'
 import type {
   ColumnMapping,
   ImportRowIssue,
+  ImportState,
   PlayerImportField,
   PlayerImportResult,
 } from '#shared/types'
@@ -18,7 +19,8 @@ const IMPORT_FIELDS: PlayerImportField[] = [
 ]
 
 const { t } = useI18n()
-const { n } = useFormat()
+const { n, dt } = useFormat()
+const { isAdmin } = useCurrentUser()
 const { auctionId, store } = useAuctionPage()
 const toastError = useToastError()
 const toastOk = useToastOk()
@@ -113,6 +115,7 @@ async function confirm() {
       { method: 'POST', body: form({ previewToken: token }) }
     )
     toastOk(t('import.confirmed', { imported: n(res.imported), updated: n(res.updated) }))
+    await loadState()
     preview.value = null
     mapping.value = {}
     file.value = null
@@ -149,6 +152,7 @@ async function importStats() {
       { method: 'POST', body: data }
     )
     statsResult.value = res
+    await loadState()
     toastOk(t('import.statsConfirmed', { imported: n(res.imported) }))
   } catch (err) {
     toastError(err)
@@ -156,6 +160,51 @@ async function importStats() {
     statsPending.value = false
   }
 }
+
+/* ---------------------------------------------- stato e cancellazione import */
+
+const state = ref<ImportState | null>(null)
+/** Cosa si sta cancellando: `players` oppure la stagione di statistiche. */
+const wiping = ref('')
+const listoneWipeOpen = ref(false)
+const statsWipeOpen = ref('')
+
+/** Sempre la stagione dell'asta: il listone e delle aste che la condividono. */
+const listoneSeason = computed(() => store.auction?.season ?? '')
+
+async function loadState() {
+  if (!listoneSeason.value) return
+  try {
+    state.value = await apiFetch<ImportState>('/api/imports', {
+      query: { season: listoneSeason.value },
+    })
+  } catch (err) {
+    toastError(err)
+  }
+}
+watch(listoneSeason, loadState, { immediate: true })
+
+async function wipe(key: string, url: string, query: Record<string, string>) {
+  wiping.value = key
+  try {
+    const res = await apiFetch<{ deleted: number }>(url, { method: 'DELETE', query })
+    toastOk(t('import.wiped', { deleted: n(res.deleted) }))
+    listoneWipeOpen.value = false
+    statsWipeOpen.value = ''
+    await loadState()
+    // Il listone della pagina d'asta e cambiato sotto i piedi: si ricarica tutto.
+    await store.load(auctionId, true)
+  } catch (err) {
+    toastError(err)
+  } finally {
+    wiping.value = ''
+  }
+}
+
+const wipeListone = () => wipe('players', '/api/imports/players', { season: listoneSeason.value })
+
+const wipeStats = (statsSeason: string) =>
+  wipe(statsSeason, '/api/imports/stats', { season: listoneSeason.value, statsSeason })
 </script>
 
 <template>
@@ -169,6 +218,68 @@ async function importStats() {
 
       <!-- ------------------------------------------------------- listone -->
       <div v-if="tab === 'players'" class="mt-6 space-y-5">
+        <!-- Cosa c'e gia dentro per questa stagione, prima di caricare altro. -->
+        <div
+          class="flex flex-wrap items-end justify-between gap-x-8 gap-y-3 border-b pb-4"
+          :style="{ borderColor: 'var(--fb-filo-forte)' }"
+        >
+          <div>
+            <p class="etichetta">{{ t('import.stateListone') }}</p>
+            <p v-if="state?.players" class="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+              <span class="tabellare text-2xl leading-none font-semibold">
+                {{ n(state.players.total) }}
+              </span>
+              <span class="tabellare text-sm">{{ state.players.season }}</span>
+              <span class="text-xs opacity-70">
+                {{ t('import.stateUpdatedAt', { when: dt(state.players.updatedAt) }) }}
+              </span>
+              <span
+                v-if="state.players.committed > 0"
+                class="text-ocra-600 dark:text-ocra-300 text-xs"
+              >
+                {{ t('import.stateCommitted', { count: n(state.players.committed) }) }}
+              </span>
+            </p>
+            <p v-else class="text-sm opacity-70">{{ t('import.stateEmpty') }}</p>
+          </div>
+
+          <div v-if="isAdmin && state?.players" class="flex flex-col items-end gap-1">
+            <UPopover v-model:open="listoneWipeOpen" :content="{ align: 'end' }">
+              <UButton
+                color="error"
+                variant="ghost"
+                icon="i-lucide-trash-2"
+                :disabled="state.players.committed > 0"
+              >
+                {{ t('import.wipeListone') }}
+              </UButton>
+              <template #content>
+                <div class="w-80 space-y-3 p-3">
+                  <p class="etichetta">
+                    {{ t('import.wipeListoneTitle', { season: state.players.season }) }}
+                  </p>
+                  <p class="text-xs opacity-70">{{ t('import.wipeListoneWarning') }}</p>
+                  <div class="flex justify-end gap-2">
+                    <UButton color="neutral" variant="ghost" @click="listoneWipeOpen = false">
+                      {{ t('common.cancel') }}
+                    </UButton>
+                    <UButton
+                      color="error"
+                      icon="i-lucide-trash-2"
+                      :loading="wiping === 'players'"
+                      @click="wipeListone"
+                    >
+                      {{ t('import.wipeConfirm') }}
+                    </UButton>
+                  </div>
+                </div>
+              </template>
+            </UPopover>
+            <p v-if="state.players.committed > 0" class="max-w-xs text-right text-xs opacity-70">
+              {{ t('import.wipeListoneBlocked') }}
+            </p>
+          </div>
+        </div>
         <UFormField :label="t('import.file')" required>
           <UFileUpload v-model="file" accept=".xlsx" class="w-full" />
         </UFormField>
@@ -304,6 +415,59 @@ async function importStats() {
 
       <!-- -------------------------------------------------- statistiche -->
       <div v-else class="mt-6 space-y-5">
+        <!-- Una riga per stagione di dati: si cancellano una alla volta. -->
+        <div class="border-b pb-4" :style="{ borderColor: 'var(--fb-filo-forte)' }">
+          <p class="etichetta">{{ t('import.stateStats') }}</p>
+          <p v-if="(state?.stats.length ?? 0) === 0" class="text-sm opacity-70">
+            {{ t('import.stateEmpty') }}
+          </p>
+          <div
+            v-for="row in state?.stats ?? []"
+            :key="row.season"
+            class="riga-listone flex flex-wrap items-center justify-between gap-x-6 gap-y-2 py-2"
+          >
+            <p class="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+              <span class="tabellare text-lg leading-none font-semibold">{{ row.season }}</span>
+              <span class="text-sm">{{ t('import.statePlayers', { count: n(row.players) }) }}</span>
+              <span class="text-xs opacity-70">
+                {{ row.providers.join(', ') }} ·
+                {{ t('import.stateUpdatedAt', { when: dt(row.updatedAt) }) }}
+              </span>
+            </p>
+
+            <UPopover
+              v-if="isAdmin"
+              :open="statsWipeOpen === row.season"
+              :content="{ align: 'end' }"
+              @update:open="statsWipeOpen = $event ? row.season : ''"
+            >
+              <UButton size="xs" color="error" variant="ghost" icon="i-lucide-trash-2">
+                {{ t('import.wipeStats') }}
+              </UButton>
+              <template #content>
+                <div class="w-80 space-y-3 p-3">
+                  <p class="etichetta">
+                    {{ t('import.wipeStatsTitle', { season: row.season }) }}
+                  </p>
+                  <p class="text-xs opacity-70">{{ t('import.wipeStatsWarning') }}</p>
+                  <div class="flex justify-end gap-2">
+                    <UButton color="neutral" variant="ghost" @click="statsWipeOpen = ''">
+                      {{ t('common.cancel') }}
+                    </UButton>
+                    <UButton
+                      color="error"
+                      icon="i-lucide-trash-2"
+                      :loading="wiping === row.season"
+                      @click="wipeStats(row.season)"
+                    >
+                      {{ t('import.wipeConfirm') }}
+                    </UButton>
+                  </div>
+                </div>
+              </template>
+            </UPopover>
+          </div>
+        </div>
         <UFormField :label="t('import.file')" required>
           <UFileUpload v-model="statsFile" accept=".xlsx" class="w-full" />
         </UFormField>

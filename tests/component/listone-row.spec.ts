@@ -1,14 +1,36 @@
 import { describe, expect, it, vi } from 'vitest'
+import { defineComponent } from 'vue'
 import { mountSuspended, registerEndpoint } from '@nuxt/test-utils/runtime'
+import type { AppRole } from '#shared/types'
 import ListoneRow from '~/components/ListoneRow.vue'
+import { useCurrentUser } from '~/composables/useCurrentUser'
 import { playerRow } from './fixtures'
 
 const AUCTION_ID = 'a1'
+const PLAYER_ID = playerRow().playerId
 
 registerEndpoint(`/api/auctions/${AUCTION_ID}/targets`, {
   method: 'POST',
   handler: () => ({ row: playerRow({ isTarget: false }) }),
 })
+
+registerEndpoint(`/api/players/${PLAYER_ID}`, {
+  method: 'DELETE',
+  handler: () => ({ playerId: PLAYER_ID, season: '2026/27' }),
+})
+
+/** La riga legge il ruolo applicativo da `useCurrentUser`: qui si decide chi la monta. */
+function asRole(role: AppRole, onRemoved: (playerId: string) => void = () => {}) {
+  return defineComponent({
+    components: { ListoneRow },
+    setup() {
+      const { user } = useCurrentUser()
+      user.value = { id: 'u1', email: 'admin@fantabro.test', name: 'Admin', role }
+      return { row: playerRow(), auctionId: AUCTION_ID, onRemoved }
+    },
+    template: '<ListoneRow :row="row" :auction-id="auctionId" @removed="onRemoved" />',
+  })
+}
 
 function byAriaLabel(labels: string[], needle: string) {
   return labels.find((label) => label.toLowerCase().includes(needle))
@@ -80,5 +102,41 @@ describe('ListoneRow', () => {
 
     expect(buy?.attributes('disabled')).toBeDefined()
     expect(wrapper.text()).toContain('35')
+  })
+
+  it('non offre la rimozione dal listone a chi non e ADMIN', async () => {
+    const wrapper = await mountSuspended(asRole('MEMBER'))
+
+    const remove = wrapper
+      .findAll('button')
+      .find((node) => (node.attributes('aria-label') ?? '').startsWith('Rimuovi dal listone'))
+
+    expect(remove).toBeUndefined()
+  })
+
+  it('emette removed dopo la conferma, quando chi guarda e ADMIN', async () => {
+    const removed: string[] = []
+    const wrapper = await mountSuspended(asRole('ADMIN', (id) => removed.push(id)))
+
+    const remove = wrapper
+      .findAll('button')
+      .find((node) => (node.attributes('aria-label') ?? '').startsWith('Rimuovi dal listone'))
+    expect(remove).toBeDefined()
+
+    // La cancellazione non parte dal primo click: passa dalla conferma (spec 49).
+    await remove?.trigger('click')
+    expect(removed).toEqual([])
+
+    // Il contenuto del popover e' teletrasportato fuori dal wrapper: si cerca nel documento.
+    const confirm = await vi.waitFor(() => {
+      const button = [...document.body.querySelectorAll('button')].find(
+        (node) => node.textContent?.trim() === 'Rimuovi'
+      )
+      expect(button).toBeDefined()
+      return button
+    })
+    confirm?.click()
+
+    await vi.waitFor(() => expect(removed).toEqual([PLAYER_ID]))
   })
 })

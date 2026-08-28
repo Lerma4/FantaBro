@@ -6,6 +6,7 @@ import {
   setStatus,
 } from '../../server/repositories/auctionPlayers'
 import { lockAuction } from '../../server/repositories/auctions'
+import { deletePlayer, isPlayerCommitted, lockPlayer } from '../../server/repositories/players'
 import { addRosterPlayer, getRosterId, listRoster } from '../../server/repositories/roster'
 import {
   acquireSuite,
@@ -144,5 +145,60 @@ describe.skipIf(!hasDatabase)('concorrenza', () => {
     const total = roster.reduce((sum, entry) => sum + entry.purchasePrice, 0)
     expect(total).toBeLessThanOrEqual(100)
     expect(total).toBe(60)
+  })
+
+  /**
+   * Cancellare dal listone e comprare lo stesso giocatore, insieme. Tutte le FK verso
+   * `players` sono in cascade: se la cancellazione controllasse gli impegni **prima** di
+   * prendere il lock, un acquisto committato subito dopo il controllo verrebbe portato via
+   * dalla cascata senza un errore e senza una riga di registro.
+   *
+   * Il `FOR UPDATE` di `lockPlayer` e in conflitto con il `FOR KEY SHARE` che ogni insert
+   * referenziante prende per la verifica di FK: la cancellazione aspetta l'acquisto, e poi
+   * lo vede.
+   */
+  it('acquisto e cancellazione insieme: la cancellazione vede la rosa e si ferma', async () => {
+    const auctionId = await createTestAuction(userId)
+    const ids = await seedPlayers([player({ name: 'Conteso' })])
+    const playerId = ids.get('Conteso')!
+    const rosterId = await getRosterId(testDb(), auctionId)
+
+    const holding = gate()
+    const release = gate()
+
+    const buy = () =>
+      testDb().transaction(async (tx) => {
+        await lockAuctionPlayer(tx, auctionId, playerId)
+        await addRosterPlayer(tx, rosterId, playerId, 30)
+        await setStatus(tx, auctionId, playerId, { status: 'MY_PLAYER', updatedBy: userId })
+        holding.open()
+        await release.passed
+      })
+
+    // Stesso ordine di `removePlayerFromListone`: lock, poi controllo, poi cancellazione.
+    const remove = () =>
+      testDb().transaction(async (tx) => {
+        const locked = await lockPlayer(tx, playerId)
+        if (!locked) throw new Error('PLAYER_NOT_FOUND')
+        if (await isPlayerCommitted(tx, playerId)) throw new Error('PLAYER_IN_USE')
+        await deletePlayer(tx, playerId)
+      })
+
+    const first = buy()
+    await holding.passed
+    const second = remove()
+    await waitForLockWaiters(1)
+    release.open()
+
+    const [bought, removed] = await Promise.allSettled([first, second])
+    expect(bought?.status).toBe('fulfilled')
+    expect(removed?.status === 'rejected' && (removed.reason as Error).message).toBe(
+      'PLAYER_IN_USE'
+    )
+
+    // L'acquisto e ancora in rosa: nessuna cascata silenziosa.
+    expect(await listRoster(testDb(), auctionId)).toEqual([
+      expect.objectContaining({ playerId, purchasePrice: 30 }),
+    ])
   })
 })

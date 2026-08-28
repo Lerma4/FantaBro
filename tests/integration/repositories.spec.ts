@@ -16,15 +16,20 @@ import {
 } from '../../server/repositories/events'
 import { addMember, findMembership, listMembers } from '../../server/repositories/members'
 import {
+  countCommittedForSeason,
   countPlayersForSeason,
+  deletePlayersForSeason,
   listPlayerRows,
+  summarizeListone,
   upsertPlayers,
 } from '../../server/repositories/players'
 import { addRosterPlayer, getRosterId, listRoster } from '../../server/repositories/roster'
 import { getSetting, setSetting } from '../../server/repositories/settings'
 import {
+  deleteStatsForSeason,
   findLatestStatsSeason,
   resolvePlayerIdsByName,
+  summarizeStats,
   upsertSeasonStats,
 } from '../../server/repositories/stats'
 import { upsertTarget } from '../../server/repositories/targets'
@@ -46,6 +51,26 @@ import {
  * fra un caso e l'altro, quindi non possono girare in parallelo con altri file.
  */
 const filter = (overrides: Record<string, unknown> = {}) => playerListFilterSchema.parse(overrides)
+
+const statsRow = (playerId: string, season: string, provider = 'excel') => ({
+  playerId,
+  season,
+  appearances: 30,
+  starts: 28,
+  minutes: 2500,
+  averageRating: 6.4,
+  fantasyAverage: 7.1,
+  goals: 9,
+  assists: 4,
+  yellowCards: 3,
+  redCards: 0,
+  penaltiesScored: 2,
+  penaltiesMissed: 0,
+  goalsConceded: null,
+  penaltiesSaved: null,
+  provider,
+  updatedAt: new Date(),
+})
 
 describe.skipIf(!hasDatabase)('repository giocatori', () => {
   let userId: string
@@ -236,6 +261,50 @@ describe.skipIf(!hasDatabase)('repository giocatori', () => {
       '2025/26'
     )
     expect(filtered.total).toBe(0)
+  })
+
+  /** Riepilogo e cancellazione in blocco: quello che la pagina di import mostra e offre. */
+  it('riepiloga il listone e lo cancella solo per la stagione richiesta', async () => {
+    const ids = await seedPlayers([player({ name: 'Primo' }), player({ name: 'Secondo' })])
+    await seedPlayers([player({ name: 'Vecchio' })], '2025/26')
+
+    const summary = await summarizeListone(testDb(), SEASON)
+    expect(summary.total).toBe(2)
+    expect(summary.updatedAt).not.toBeNull()
+    expect(await countCommittedForSeason(testDb(), SEASON)).toBe(0)
+
+    // Uno in rosa e uno venduto ad altri: entrambi contano come impegnati.
+    await ensureAuctionPlayers(testDb(), auctionId, [...ids.values()])
+    const rosterId = await getRosterId(testDb(), auctionId)
+    await addRosterPlayer(testDb(), rosterId, ids.get('Primo')!, 10)
+    await setStatus(testDb(), auctionId, ids.get('Secondo')!, {
+      status: 'SOLD',
+      soldPrice: 30,
+      otherTeamName: 'Rivali',
+      updatedBy: userId,
+    })
+    expect(await countCommittedForSeason(testDb(), SEASON)).toBe(2)
+
+    expect(await deletePlayersForSeason(testDb(), SEASON)).toBe(2)
+    expect(await countPlayersForSeason(testDb(), SEASON)).toBe(0)
+    expect(await countPlayersForSeason(testDb(), '2025/26')).toBe(1)
+  })
+
+  it('riepiloga le statistiche e ne cancella una stagione alla volta', async () => {
+    const ids = await seedPlayers([player({ name: 'Statistico' }), player({ name: 'Altro' })])
+    await upsertSeasonStats(testDb(), [
+      statsRow(ids.get('Statistico')!, '2025/26'),
+      statsRow(ids.get('Altro')!, '2025/26', 'manuale'),
+      statsRow(ids.get('Statistico')!, '2024/25'),
+    ])
+
+    const summary = await summarizeStats(testDb(), SEASON)
+    expect(summary.map((row) => row.season)).toEqual(['2025/26', '2024/25'])
+    expect(summary[0]).toMatchObject({ players: 2, providers: ['excel', 'manuale'] })
+    expect(summary[0]?.updatedAt).not.toBeNull()
+
+    expect(await deleteStatsForSeason(testDb(), SEASON, '2025/26')).toBe(2)
+    expect((await summarizeStats(testDb(), SEASON)).map((row) => row.season)).toEqual(['2024/25'])
   })
 
   it('filtra per tier e per soli target', async () => {

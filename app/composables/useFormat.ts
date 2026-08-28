@@ -13,6 +13,9 @@ export function useFormat() {
   const clock = computed(
     () => new Intl.DateTimeFormat(locale.value, { hour: '2-digit', minute: '2-digit' })
   )
+  const stamp = computed(
+    () => new Intl.DateTimeFormat(locale.value, { dateStyle: 'short', timeStyle: 'short' })
+  )
 
   return {
     /** Interi: prezzi, budget, slot. */
@@ -24,5 +27,7 @@ export function useFormat() {
       value == null ? '—' : `${value > 0 ? '+' : ''}${integer.value.format(Math.round(value))}%`,
     /** `14:32` del registro operazioni. */
     time: (iso?: string | null) => (iso ? clock.value.format(new Date(iso)) : '—'),
+    /** `20/08/26, 09:00`: data e ora di un import, che puo essere di giorni fa. */
+    dt: (iso?: string | null) => (iso ? stamp.value.format(new Date(iso)) : '—'),
   }
 }

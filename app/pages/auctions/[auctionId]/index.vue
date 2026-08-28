@@ -16,6 +16,7 @@ const {
   activeFilterCount,
   fetchRows,
   applyRow,
+  removeRow,
   invalidate,
   resetFilters,
 } = usePlayerList(auctionId)
@@ -103,6 +104,18 @@ function onApplied(payload: { state: AuctionState; row: PlayerRow }) {
 function onRowUpdated(row: PlayerRow) {
   applyRow(row)
   operations.value += 1
+}
+
+/**
+ * Rimozione dal listone (solo ADMIN): la riga sparisce subito, senza aspettare
+ * lo stream. `store.load(..., true)` rilegge il conteggio del listone, che vive
+ * sull'asta e non nello stato d'asta: senza, cancellare l'ultimo giocatore
+ * mostrerebbe il vuoto sbagliato.
+ */
+function onRowRemoved(playerId: string) {
+  removeRow(playerId)
+  selected.value = selected.value.filter((id) => id !== playerId)
+  void store.load(auctionId, true).catch(() => undefined)
 }
 
 function onReverted(payload: { state: AuctionState; row: PlayerRow | null }) {
@@ -318,6 +331,7 @@ const emptyListone = computed(
           :style="{ height: `${ROW_H}px` }"
           @applied="onApplied"
           @updated="onRowUpdated"
+          @removed="onRowRemoved"
           @toggle-select="toggleSelect"
         />
 

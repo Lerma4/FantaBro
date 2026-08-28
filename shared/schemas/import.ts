@@ -44,6 +44,12 @@ export const statsImportSchema = z.object({
   sheet: z.string().trim().min(1).optional(),
 })
 
+/** Query di `/api/imports`: la stagione del listone su cui si guarda o si cancella. */
+export const importStateQuerySchema = z.object({ season: seasonSchema })
+
+/** Per le statistiche servono due stagioni: quella del listone e quella dei dati. */
+export const statsWipeQuerySchema = importStateQuerySchema.extend({ statsSeason: seasonSchema })
+
 export type ImportPreviewInput = z.infer<typeof importPreviewSchema>
 export type ImportConfirmInput = z.infer<typeof importConfirmSchema>
 export type StatsImportInput = z.infer<typeof statsImportSchema>

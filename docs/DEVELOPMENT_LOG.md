@@ -553,3 +553,135 @@ Prova per esecuzione quattro requisiti:
 loro `ask()` è stato provato separatamente con un prompt minimo (13,3 s e 14,0 s,
 advice `BUY`), ma **non** su un contesto d'asta reale come questo: la prova che il
 contesto venga _usato_ esiste solo per Claude Code.
+
+---
+
+## Feature 31 — Rimozione di un giocatore dal listone (solo ADMIN)
+
+### Implementato
+
+- `DELETE /api/players/:playerId`, protetta da `requireAdmin`. La rotta sta **fuori**
+  da `/api/auctions/:id` di proposito: il listone è della stagione, non dell'asta,
+  quindi la cancellazione tocca tutte le aste che la condividono. Per lo stesso motivo
+  il permesso è il ruolo applicativo ADMIN (spec §8) e non la membership OWNER, che
+  vale solo dentro una singola asta.
+- `server/services/players.ts` → `removePlayerFromListone()`: in transazione prende il
+  lock sulla riga di listone, rifiuta se il giocatore è impegnato, cancella, e notifica
+  **ogni** asta della stagione con `playerIds: []` ("ricarica tutto": la riga non esiste
+  più, non c'è niente da aggiornare in posto).
+- `server/repositories/players.ts` → `lockPlayer()`, `isPlayerCommitted()`,
+  `deletePlayer()`; `server/repositories/auctions.ts` → `listAuctionIdsForSeason()`.
+- Nuovo codice errore `PLAYER_IN_USE` (409): giocatore già in rosa o segnato SOLD in
+  qualche asta. Tradotto in `it.json` insieme al suggerimento azionabile.
+- UI: bottone cestino in fondo alla riga del listone, reso solo se
+  `useCurrentUser().isAdmin`, con conferma esplicita nel popover. La riga sparisce
+  subito dalla lista senza aspettare lo stream; la pagina ricarica l'asta per tenere
+  allineato `playersCount`.
+
+### Modifiche database
+
+- Nessuna. Le `ON DELETE CASCADE` verso `players` esistevano già: sono proprio loro il
+  motivo del rifiuto su un giocatore impegnato.
+
+### Test
+
+- `tests/unit/services/players.spec.ts`: cancellazione + notifica a tutte le aste della
+  stagione, `PLAYER_NOT_FOUND`, `PLAYER_IN_USE` senza cancellare né notificare, e
+  l'ordine lock → controllo.
+- `tests/integration/concurrency.spec.ts`: acquisto e cancellazione concorrenti su due
+  transazioni reali. Verificato che il test **fallisce** togliendo `.for('update')` da
+  `lockPlayer`: senza il lock la cancellazione non vede l'acquisto committato e la
+  cascata si porta via la riga di rosa in silenzio.
+- `tests/component/listone-row.spec.ts`: il bottone non esiste per un MEMBER; per un
+  ADMIN la cancellazione parte solo dopo la conferma.
+- `tests/e2e/auction-flow.spec.ts` passo 14: `DELETE` reale su un giocatore libero (200,
+  sparisce dal listone) e su uno in rosa e uno SOLD (409 `PLAYER_IN_USE`), con la rosa
+  intatta dopo i rifiuti.
+
+### Validazione
+
+- pnpm lint: PASS
+- pnpm typecheck: PASS
+- pnpm test: PASS (397/397, con `DATABASE_URL` impostata: integration ed e2e eseguiti,
+  non saltati)
+- pnpm format:check: PASS
+- pnpm build: PASS
+
+### Note
+
+- `lockPlayer` usa `for update` e non `for no key update`: qui il fatto che un
+  `FOR UPDATE` blocchi anche gli insert che referenziano la riga (la verifica di FK
+  prende `FOR KEY SHARE`) è l'effetto **voluto**, non un danno collaterale. È il
+  contrario della scelta fatta in `lockAuction`, e il motivo è che qui la riga sta per
+  sparire: un acquisto concorrente non deve poterla referenziare.
+- Nessun evento in `auction_events` per la cancellazione: `auction_events.player_id` è
+  `ON DELETE SET NULL`, quindi l'evento perderebbe subito il riferimento, e non sarebbe
+  comunque annullabile. Il registro d'asta resta il registro delle operazioni d'asta.
+- L'operazione è irreversibile per scelta: si torna indietro re-importando il listone.
+  Il rifiuto su rosa/SOLD è quello che impedisce alla cancellazione di distruggere dati
+  che invece un annullo saprebbe recuperare.
+
+---
+
+## Feature 32 — Stato dell'import e cancellazione di listone e statistiche (solo ADMIN)
+
+### Implementato
+
+- `GET /api/imports?season=…`: cosa risulta importato per una stagione, listone e
+  statistiche riportati separati perché sono due import distinti e si cancellano
+  separati. In sola lettura basta essere autenticati.
+- `DELETE /api/imports/players?season=…` → `wipeListone()`: rifiuta con
+  `LISTONE_IN_USE` se anche **un solo** giocatore della stagione è già impegnato,
+  altrimenti cancella e fa ricaricare ogni asta della stagione.
+- `DELETE /api/imports/stats?season=…&statsSeason=…` → `wipeStats()`: nessun vincolo,
+  sono dati derivati. Cancella **una** stagione di dati alla volta, limitata ai
+  giocatori del listone indicato: stagioni diverse non si toccano mai fra loro (spec §12).
+- `server/repositories/players.ts` → `summarizeListone()`, `countCommittedForSeason()`,
+  `deletePlayersForSeason()`; `server/repositories/stats.ts` → `summarizeStats()`,
+  `deleteStatsForSeason()`.
+- Nuovo codice errore `LISTONE_IN_USE` (409), tradotto in `it.json` con il suggerimento
+  azionabile.
+- UI: in cima a ciascuna delle due tab di import c'è ora il riepilogo di cosa è già
+  dentro — quanti giocatori, quando, quanti già acquistati; una riga per stagione di
+  statistiche con i provider. Il cestino è reso solo se `useCurrentUser().isAdmin`, con
+  conferma esplicita nel popover, ed è disabilitato quando `committed > 0`. `dt()` in
+  `useFormat` per data e ora di un import, che può essere di giorni fa.
+
+### Modifiche database
+
+- Nessuna. Come per la Feature 31 sono le `ON DELETE CASCADE` già esistenti a portare
+  via statistiche, stato d'asta e target.
+
+### Test
+
+- `tests/unit/services/import.spec.ts`: `getImportState` con e senza listone importato,
+  `wipeListone` rifiutata con giocatori impegnati (senza cancellare nulla), cancellazione
+  con notifica a **tutte** le aste della stagione, `wipeStats` limitata alla sola
+  stagione di dati indicata.
+- `tests/integration/repositories.spec.ts`: riepilogo e cancellazione per stagione su
+  PostgreSQL reale, incluso il fatto che una stagione di statistiche cancellata non
+  tocca le altre.
+
+### Validazione
+
+- pnpm lint: PASS
+- pnpm typecheck: PASS
+- pnpm test: PASS (407/407, con `DATABASE_URL` impostata: integration ed e2e eseguiti,
+  non saltati)
+- pnpm format:check: PASS
+- pnpm build: **non eseguito**
+
+### Note
+
+- Le rotte stanno fuori da `/api/auctions/:id` per lo stesso motivo della Feature 31: il
+  listone è della stagione, non dell'asta. Il permesso è il ruolo applicativo ADMIN
+  (spec §8), non la membership OWNER.
+- Il rifiuto del wipe è **in blocco**, non per singolo giocatore: basta un acquisto in
+  qualsiasi asta della stagione per bloccare tutto. È voluto — un'asta già giocata non si
+  perde per un click, e la via d'uscita esiste già (annullare gli acquisti dal registro,
+  oppure cancellare l'asta).
+- `reloadSeason()` notifica con `playerIds: []`, la convenzione "ricarica tutto" di
+  `utils/events`: dopo una cancellazione non esistono più righe da aggiornare in posto.
+- Le statistiche non hanno un legame diretto con l'asta, solo con i giocatori: per questo
+  `summarizeStats` e `deleteStatsForSeason` passano dai `players` della stagione del
+  listone invece che dall'asta.

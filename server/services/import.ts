@@ -28,6 +28,11 @@ function sha256(value: Buffer | string): string {
  * Il listone ufficiale e multi-foglio, quindi senza il foglio si potrebbe confermare
  * `Portieri` avendo visto in preview `Tutti`. Le chiavi della mappatura sono ordinate
  * (l'ordine con cui il client le rimanda non conta) e `sheet` assente o vuoto collidono.
+ *
+ * La mappatura da passare e sempre quella **effettiva** (autodetect + override), non quella
+ * grezza del client: la UI riempie i selettori con la mappatura rilevata in preview e la
+ * rimanda in conferma, e mandare indietro cio che il server ha appena dedotto non e un
+ * cambio di import. Solo una mappatura che sposta davvero le colonne invalida il token.
  */
 export function importPreviewToken(
   buffer: Buffer,
@@ -62,7 +67,7 @@ export async function previewImport(input: PreviewImportInput): Promise<PreviewI
   })
   return {
     ...result,
-    previewToken: importPreviewToken(input.buffer, input.mapping, input.sheet),
+    previewToken: importPreviewToken(input.buffer, result.mapping, input.sheet),
   }
 }
 
@@ -84,15 +89,17 @@ export interface ConfirmImportResult {
  * controllo si confermerebbe un file diverso da quello che l'utente ha visto.
  */
 export async function confirmImport(input: ConfirmImportInput): Promise<ConfirmImportResult> {
-  if (importPreviewToken(input.buffer, input.mapping, input.sheet) !== input.previewToken) {
-    throw new DomainError('CONFLICT')
-  }
-
+  // Il parsing viene prima del confronto: il token e sulla mappatura effettiva, che si
+  // conosce solo dopo. E lettura pura, nessuna scrittura avviene prima del controllo.
   const result = await getPlayerDataProvider().loadPlayers({
     buffer: input.buffer,
     sheet: input.sheet,
     mapping: input.mapping,
   })
+
+  if (importPreviewToken(input.buffer, result.mapping, input.sheet) !== input.previewToken) {
+    throw new DomainError('CONFLICT')
+  }
 
   if (!result.importable) {
     throw new DomainError(
@@ -160,7 +167,9 @@ export async function importStats(input: ImportStatsInput): Promise<ImportStatsR
 
   return withTransaction(async (tx) => {
     const names = parsed.stats.map((entry) => entry.playerName)
-    const resolved = await resolvePlayerIdsByName(tx, input.season, names)
+    // Il listone e caricato sulla stagione dell'asta: i nomi si risolvono li. `input.season`
+    // e la stagione dei dati e finisce solo sulle righe scritte.
+    const resolved = await resolvePlayerIdsByName(tx, input.auction.season, names)
     const updatedAt = new Date()
 
     const rows: PlayerSeasonStats[] = []

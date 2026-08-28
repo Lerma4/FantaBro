@@ -116,6 +116,23 @@ describe('previewImport / confirmImport', () => {
     expect(result).toEqual({ imported: 1, updated: 0, issues: [] })
   })
 
+  it('conferma quando il client rimanda la mappatura rilevata dalla preview', async () => {
+    // La UI riempie i selettori con `preview.mapping` e la rimanda in conferma: e lo stesso
+    // import, non un import diverso, e il token deve restare valido.
+    const preview = await previewImport({ buffer })
+
+    await confirmImport({
+      auction,
+      buffer,
+      season: auction.season,
+      mapping: preview.mapping,
+      previewToken: preview.previewToken,
+      userId: 'user-1',
+    })
+
+    expect(m.upsertPlayers).toHaveBeenCalledWith(m.tx, auction.season, [parsedPlayer])
+  })
+
   it('rifiuta la conferma di un file diverso da quello visto in preview', async () => {
     const tokenOfAnotherFile = importPreviewToken(Buffer.from('un-altro-file'))
 
@@ -163,16 +180,15 @@ describe('previewImport / confirmImport', () => {
   })
 
   it('rifiuta un file con colonne obbligatorie mancanti', async () => {
-    m.loadPlayers.mockResolvedValue(
-      importResult({ importable: false, missingColumns: ['fvm'], players: [] })
-    )
+    const parsed = importResult({ importable: false, missingColumns: ['fvm'], players: [] })
+    m.loadPlayers.mockResolvedValue(parsed)
 
     await expect(
       confirmImport({
         auction,
         buffer,
         season: auction.season,
-        previewToken: importPreviewToken(buffer),
+        previewToken: importPreviewToken(buffer, parsed.mapping),
         userId: 'user-1',
       })
     ).rejects.toMatchObject({ name: 'DomainError', code: 'IMPORT_MISSING_COLUMNS' })
@@ -181,20 +197,19 @@ describe('previewImport / confirmImport', () => {
   })
 
   it('rifiuta un file senza nessuna riga valida', async () => {
-    m.loadPlayers.mockResolvedValue(
-      importResult({
-        importable: false,
-        players: [],
-        issues: [{ row: 2, code: 'INVALID_ROLE', value: 'X' }],
-      })
-    )
+    const parsed = importResult({
+      importable: false,
+      players: [],
+      issues: [{ row: 2, code: 'INVALID_ROLE', value: 'X' }],
+    })
+    m.loadPlayers.mockResolvedValue(parsed)
 
     await expect(
       confirmImport({
         auction,
         buffer,
         season: auction.season,
-        previewToken: importPreviewToken(buffer),
+        previewToken: importPreviewToken(buffer, parsed.mapping),
         userId: 'user-1',
       })
     ).rejects.toMatchObject({ name: 'DomainError', code: 'IMPORT_NO_VALID_ROWS' })
@@ -222,6 +237,12 @@ describe('importStats', () => {
     })
 
     expect(m.upsertPlayers).not.toHaveBeenCalled()
+
+    // I nomi si agganciano al listone dell'asta: la stagione dei dati non c'entra (spec 12).
+    expect(m.resolvePlayerIdsByName).toHaveBeenCalledWith(expect.anything(), auction.season, [
+      'Dimarco',
+      'Sconosciuto',
+    ])
     expect(result.unmatched).toEqual(['Sconosciuto'])
     expect(result.imported).toBe(1)
 

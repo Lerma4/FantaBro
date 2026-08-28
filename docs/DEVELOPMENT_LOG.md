@@ -685,3 +685,76 @@ contesto venga _usato_ esiste solo per Claude Code.
 - Le statistiche non hanno un legame diretto con l'asta, solo con i giocatori: per questo
   `summarizeStats` e `deleteStatsForSeason` passano dai `players` della stagione del
   listone invece che dall'asta.
+
+---
+
+## Feature 33 — Accesso web in sola lettura per l'AI, e perimetro degli strumenti verificato contro le CLI reali
+
+### Perché
+
+Infortuni, squalifiche, formazioni previste e forma recente non sono nel listone, e non
+possono esserci: cambiano ogni giorno. Un consulente che non li vede sbaglia esattamente
+quando conta di più. Prezzi, quotazioni, budget, rosa e disponibilità continuano ad
+arrivare **solo** dall'`AuctionContext` sanificato.
+
+### Implementato
+
+- `renderContextPrompt` concede WebSearch/WebFetch per i soli fatti che il contesto non
+  porta, chiede di citare la fonte e la data, e vieta di inventare prezzi o statistiche.
+  Una sola ricerca: l'utente sta aspettando in mezzo a un'asta.
+- Perimetro imposto **per CLI**, non a parole:
+  - Claude Code: `--tools WebSearch,WebFetch` più `--allowedTools` con gli stessi due.
+    Senza la pre-approvazione, in `--print` la richiesta di permesso non ha chi la
+    conceda e la chiamata verrebbe negata.
+  - Codex: `-c tools.web_search=true`. Questa versione della CLI non ha un flag
+    dedicato. È uno strumento lato modello, non un accesso di rete concesso alla
+    sandbox: `--sandbox read-only` resta intatto.
+  - OpenCode: `opencode.json` scritto nella cwd temporanea a ogni invocazione, con
+    `tools` come elenco chiuso (solo `webfetch` acceso) e `permission` come seconda
+    barriera. Serve il nuovo hook `prepare(workdir)` in `runCliAsk`: è l'unico modo di
+    imporre una policy a una CLI che la legge solo da file, e resta per invocazione,
+    senza stato condiviso e senza toccare la configurazione del server.
+- `stripAdviceBlock` toglie dalla prosa il blocco JSON già reso come scheda, e `AiPanel`
+  non stampa più il paragrafo quando non resta testo: il consiglio si vedeva due volte.
+
+### La scoperta che ha cambiato l'approccio
+
+Verificato il 2026-08-21 contro la CLI OpenCode installata (1.18.18): **omettere `--auto`
+non blocca niente**. Senza terminale interattivo OpenCode esegue comunque gli strumenti,
+shell inclusa — un prompt che chiede di eseguire `echo` ottiene l'esecuzione ed exit 0.
+Nemmeno `permission.bash = "deny"` chiude il buco, perché il modello delega a un
+subagente che la policy del primario non copre. L'unica barriera che ha retto alla prova
+è spegnere gli strumenti in `tools`.
+
+Il commento nel codice diceva il contrario, e ci credeva. Il prompt d'asta è testo libero
+dell'utente, quindi non era un'ipotesi remota: era la via di prompt-injection che spec
+§43 vieta, aperta. Da qui la regola aggiunta alla spec: il perimetro va **verificato
+contro la CLI reale**, non dedotto dai suoi flag, e riverificato a ogni aggiornamento —
+sono nomi di strumenti, e un rename li rende silenziosamente inefficaci.
+
+### Modifiche database
+
+- Nessuna.
+
+### Test
+
+- `tests/unit/ai/providers.spec.ts`: gli argomenti concessi a Claude Code e a Codex; per
+  OpenCode il contenuto di `opencode.json` (shell, filesystem e `task` spenti, `webfetch`
+  acceso) e il fatto che quel file viva **solo** nella cartella temporanea della
+  richiesta, che è l'unico file lì dentro.
+- `tests/unit/domain/ai-context.spec.ts`: il prompt concede i due strumenti di rete e
+  continua a vietare tutto il resto, e `parseAdvice` non lascia il JSON nella prosa.
+- `tests/unit/ai/helpers/fake-spawn.ts`: il doppio di `spawn` ora registra anche i file
+  scritti nella cwd, altrimenti la policy di OpenCode non sarebbe osservabile.
+
+### Validazione
+
+- pnpm lint: PASS
+- pnpm typecheck: PASS
+- pnpm test: PASS (407/407, con `DATABASE_URL` impostata)
+- pnpm format:check: PASS
+- pnpm build: **non eseguito**
+
+Nessuna CLI reale viene invocata dai test: girano senza `claude`, `codex` o `opencode`
+installati, senza rete e senza consumare quota. La prova che il perimetro regga davvero
+resta quella manuale del 2026-08-21, da ripetere a ogni aggiornamento delle CLI.

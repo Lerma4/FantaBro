@@ -43,6 +43,13 @@ import { PROBE_TIMEOUT_MS, sanitizeDetail } from './exec'
  *                           invocazioni concorrenti (spec §44).
  * - `--color never`         stdout pulito.
  * - `--cd <workdir>`        radice del workspace esplicita sulla cartella vuota.
+ * - `-c tools.web_search=true`
+ *                          questa versione della CLI non ha un flag dedicato: la
+ *                          ricerca si abilita solo dalla configurazione. Serve per
+ *                          infortuni, squalifiche e formazioni, che nel listone non
+ *                          ci sono. È uno strumento lato modello, non un accesso di
+ *                          rete concesso alla sandbox: `--sandbox read-only` resta
+ *                          intatto.
  *
  * Deliberatamente NON si usa `--ignore-user-config`: quel flag scarterebbe
  * `$CODEX_HOME/config.toml`, cioè proprio `forced_login_method = "chatgpt"` e
@@ -61,6 +68,8 @@ const ASK_ARGS = [
   '--ephemeral',
   '--color',
   'never',
+  '-c',
+  'tools.web_search=true',
 ] as const
 
 /** `codex login status` stampa `Logged in using ChatGPT` senza invocare il modello. */

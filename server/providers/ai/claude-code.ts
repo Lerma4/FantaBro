@@ -15,11 +15,17 @@ import { cliStatus, runCliAsk } from './cli'
  *
  * - `--print`                  modalità headless: stampa la risposta ed esce.
  * - `--output-format text`     solo testo su stdout, niente JSONL da spacchettare.
- * - `--tools ''`               l'help documenta `""` come "disable all tools":
- *                              è la disattivazione esplicita di Bash/Edit/Read,
- *                              cioè di tutto ciò che spec §43 vieta.
- * - `--permission-mode manual` nessuna azione auto-approvata, cintura oltre alle
- *                              bretelle di `--tools ''`.
+ * - `--tools WebSearch,WebFetch` l'help documenta `--tools` come selezione dal set
+ *                              di strumenti interni. Restano fuori Bash/Edit/Read,
+ *                              cioè tutto ciò che spec §43 vieta; entrano solo i
+ *                              due strumenti di rete, che servono per i fatti che
+ *                              il listone non ha (infortuni, squalifiche, forma).
+ * - `--allowedTools ...`       pre-approva i due strumenti: senza, in `--print`
+ *                              la richiesta di permesso non ha chi la conceda e la
+ *                              chiamata verrebbe negata.
+ * - `--permission-mode manual` nulla di diverso da WebSearch/WebFetch è
+ *                              auto-approvato, cintura oltre alle bretelle di
+ *                              `--tools`.
  * - `--safe-mode`              ignora CLAUDE.md, skill, plugin, hook e server MCP
  *                              dell'utente del server: l'help garantisce che
  *                              l'autenticazione continua a funzionare normalmente,
@@ -34,12 +40,17 @@ import { cliStatus, runCliAsk } from './cli'
  * keychain are never read)", cioè esattamente la fatturazione a consumo che la
  * specifica vieta.
  */
+/** Gli unici strumenti concessi: rete in lettura, niente filesystem né shell (spec §43). */
+const WEB_TOOLS = 'WebSearch,WebFetch'
+
 const ASK_ARGS = [
   '--print',
   '--output-format',
   'text',
   '--tools',
-  '',
+  WEB_TOOLS,
+  '--allowedTools',
+  WEB_TOOLS,
   '--permission-mode',
   'manual',
   '--safe-mode',

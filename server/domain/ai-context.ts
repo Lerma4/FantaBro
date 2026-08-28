@@ -111,7 +111,9 @@ export function buildAuctionContext(input: {
 export function renderContextPrompt(context: AuctionContext, prompt: string): string {
   return [
     'You are assisting a single fantasy football (Fantacalcio) manager during a live auction.',
-    'Answer using only the auction context below.',
+    'Prices, quotations, budget, roster and availability come only from the auction context below.',
+    'For facts the context does not carry — injuries, suspensions, expected line-ups, recent form —',
+    'you may use WebSearch and WebFetch. Keep it to one quick lookup: the user is waiting mid-auction.',
     '',
     '`availableAlternatives` are players you can still buy right now.',
     '`comparePlayers` are players the user asked to compare: some may already be taken or',
@@ -126,9 +128,11 @@ export function renderContextPrompt(context: AuctionContext, prompt: string): st
     '',
     'RULES:',
     '- Reply in Italian.',
-    '- Reply with text only. Do not run commands, do not read or write files, do not use any tool.',
+    '- Do not run commands, do not read or write files, do not use any tool other than WebSearch',
+    '  and WebFetch. If a lookup fails, say so and answer from the context.',
     '- Be concise and concrete: this is read while an auction is running.',
-    '- Never assume prices or statistics that are not in the context above.',
+    '- Never invent prices, quotations or statistics that are not in the context above.',
+    '- Say where a fact comes from when it comes from the web, and give its date if you have it.',
     '- End the answer with a single JSON block, nothing after it:',
     '```json',
     '{"recommendation":"BUY|WAIT|PASS","suggestedMaxPrice":0,"confidence":0.0,"reasoning":"...","alternatives":["..."]}',
@@ -170,6 +174,19 @@ function jsonCandidates(text: string): string[] {
 }
 
 /**
+ * Toglie dal testo il blocco JSON riconosciuto, con il fence markdown che lo circonda.
+ * Il consiglio strutturato viene gia mostrato come scheda: lasciarlo anche nella prosa
+ * significa stamparlo due volte all'utente.
+ */
+function stripAdviceBlock(text: string, candidate: string): string {
+  const start = text.lastIndexOf(candidate)
+  if (start < 0) return text
+  const before = text.slice(0, start).replace(/```(?:json)?[ \t]*\n?$/i, '')
+  const after = text.slice(start + candidate.length).replace(/^\s*```/, '')
+  return `${before}${after}`.trim()
+}
+
+/**
  * Estrae e valida l'output strutturato (spec 46). Funziona anche se il JSON e dentro un
  * fence markdown o circondato da prosa. Se manca o non e valido restituisce solo il testo:
  * non lancia mai, il fallback testuale e sempre disponibile.
@@ -186,7 +203,7 @@ export function parseAdvice(rawText: string): { advice?: PlayerAdvice; text: str
       continue
     }
     const parsed = playerAdviceSchema.safeParse(value)
-    if (parsed.success) return { advice: parsed.data, text }
+    if (parsed.success) return { advice: parsed.data, text: stripAdviceBlock(text, candidate) }
   }
 
   return { text }

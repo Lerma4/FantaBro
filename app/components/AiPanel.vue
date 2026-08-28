@@ -151,7 +151,7 @@ watch(open, (isOpen) => {
           </div>
 
           <p
-            v-else
+            v-else-if="message.text"
             class="mt-0.5 text-sm whitespace-pre-line"
             :class="message.role === 'user' ? 'opacity-70' : ''"
           >

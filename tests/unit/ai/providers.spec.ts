@@ -86,16 +86,18 @@ describe('ClaudeCodeProvider.getStatus', () => {
 })
 
 describe('ClaudeCodeProvider.ask', () => {
-  it('invoca la CLI in modalità non interattiva e senza strumenti', async () => {
+  it('invoca la CLI in modalità non interattiva e con i soli strumenti di rete', async () => {
     fakeSpawn.queue({ stdout: 'Conviene, ma non oltre 40.', code: 0 })
 
     await claude.ask(context, 'Conviene a 38?')
 
     const call = fakeSpawn.last()
     expect(call.appArgs).toContain('--print')
-    // `--tools ''` disabilita tutti gli strumenti (spec §43).
+    // Solo WebSearch/WebFetch: niente Bash, Edit o Read (spec §43).
     expect(call.appArgs).toContain('--tools')
-    expect(call.appArgs[call.appArgs.indexOf('--tools') + 1]).toBe('')
+    expect(call.appArgs[call.appArgs.indexOf('--tools') + 1]).toBe('WebSearch,WebFetch')
+    // Senza pre-approvazione, in `--print` il permesso non ha chi lo conceda.
+    expect(call.appArgs[call.appArgs.indexOf('--allowedTools') + 1]).toBe('WebSearch,WebFetch')
     expect(call.appArgs).toContain('--safe-mode')
     expect(call.appArgs).toContain('--no-session-persistence')
     // `--bare` forzerebbe l'autenticazione via ANTHROPIC_API_KEY (spec §34).
@@ -258,6 +260,37 @@ describe('OpenCodeProvider', () => {
     expect(response.providerId).toBe('opencode')
   })
 
+  it('spegne shell, filesystem e delega lasciando solo webfetch', async () => {
+    // Verificato contro la CLI reale: senza questa config un prompt che chiede di
+    // eseguire un comando ottiene l'esecuzione, anche senza `--auto`. È la via di
+    // prompt-injection che spec §43 vieta, e il prompt d'asta è testo dell'utente.
+    fakeSpawn.queue({ stdout: 'Meglio passare.', code: 0 })
+
+    await opencode.ask(context, 'Conviene?')
+
+    const config = JSON.parse(fakeSpawn.last().cwdFiles['opencode.json'] ?? '{}')
+    expect(config.tools).toMatchObject({
+      bash: false,
+      edit: false,
+      write: false,
+      read: false,
+      // `task` delega a un subagente che la policy del primario non copre.
+      task: false,
+      webfetch: true,
+    })
+    expect(config.permission).toMatchObject({ bash: 'deny', webfetch: 'allow' })
+  })
+
+  it('la config vive solo nella cartella temporanea della richiesta', async () => {
+    fakeSpawn.queue({ stdout: 'ok', code: 0 })
+
+    await opencode.ask(context, 'Conviene?')
+
+    const call = fakeSpawn.last()
+    expect(call.cwd).toContain('fantabro-ai-')
+    expect(Object.keys(call.cwdFiles)).toEqual(['opencode.json'])
+  })
+
   it('TIMEOUT se il processo non termina', async () => {
     fakeSpawn.queue({ hang: true })
 
@@ -316,6 +349,11 @@ describe('CodexProvider in modalità locale', () => {
     expect(call.appArgs).toContain('read-only')
     expect(call.appArgs).toContain('--ephemeral')
     expect(call.appArgs).toContain('--skip-git-repo-check')
+    // Questa versione della CLI non ha un flag dedicato: la ricerca web si
+    // abilita solo da configurazione. È uno strumento lato modello, quindi non
+    // allarga la sandbox.
+    expect(call.appArgs).toContain('tools.web_search=true')
+    expect(call.appArgs).toContain('--sandbox')
     // `-` in coda: il prompt arriva da stdin.
     expect(call.appArgs.at(-1)).toBe('-')
     // `--cd` punta alla cartella temporanea, non al progetto.

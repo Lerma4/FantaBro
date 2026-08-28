@@ -11,6 +11,8 @@
  * `NOT_AUTHENTICATED`. Nessun passaggio a una API key separata: le variabili
  * `*_API_KEY` non sono nella allowlist di `buildEnv`.
  */
+import { writeFile } from 'node:fs/promises'
+import { join } from 'node:path'
 import type { AiProvider, AiProviderStatus, AiResponse, AuctionContext } from '#shared/types/ai'
 import { cliStatus, runCliAsk } from './cli'
 
@@ -24,14 +26,59 @@ import { cliStatus, runCliAsk } from './cli'
  *              server, che sono codice arbitrario che non vogliamo nel percorso.
  *
  * Deliberatamente NON si usa `--auto` ("auto-approve permissions that are not
- * explicitly denied (dangerous!)"): senza quel flag, e senza un terminale
- * interattivo, un eventuale tentativo di usare strumenti non viene approvato
- * (spec §43). Il perimetro è completato dalla working directory temporanea
- * vuota impostata come cwd da `runCliAsk`.
+ * explicitly denied (dangerous!)").
+ *
+ * ATTENZIONE, verificato contro la CLI installata (1.18.18): omettere `--auto`
+ * NON basta. Senza terminale interattivo OpenCode esegue comunque gli strumenti,
+ * shell inclusa: un prompt che chiede di eseguire `echo` ottiene l'esecuzione ed
+ * exit 0. Nemmeno `permission.bash = "deny"` chiude il buco, perché il modello
+ * delega a un subagente che la policy del primario non copre. L'unica barriera
+ * che ha retto alla prova è spegnere gli strumenti in `tools`: vedi
+ * `TOOLS_POLICY`. Il prompt d'asta è testo libero dell'utente, quindi questa non
+ * è un'ipotesi remota ma la via di prompt-injection che spec §43 vieta.
  *
  * In `run` la risposta va su stdout pulito; il banner del modello va su stderr.
  */
 const ASK_ARGS = ['run', '--pure'] as const
+
+/**
+ * Config scritta nella cwd temporanea a ogni invocazione (spec §43, §44).
+ *
+ * `tools` è un elenco chiuso: si spegne tutto ciò che tocca disco, shell o
+ * delega, e resta acceso solo `webfetch`, che serve per i fatti che il listone
+ * non ha (infortuni, squalifiche, formazioni). `task` è spento perché è la via
+ * con cui il modello aggirava `permission`.
+ *
+ * `permission` resta come seconda barriera: se una versione futura di OpenCode
+ * introducesse un nome di strumento non previsto qui, `tools` non lo
+ * spegnerebbe, ma la policy di permesso lo intercetterebbe comunque.
+ *
+ * DA RIVERIFICARE all'aggiornamento della CLI OpenCode: sono nomi di strumenti,
+ * e un rename li rende silenziosamente inefficaci.
+ */
+const TOOLS_POLICY = {
+  $schema: 'https://opencode.ai/config.json',
+  tools: {
+    bash: false,
+    edit: false,
+    write: false,
+    patch: false,
+    read: false,
+    grep: false,
+    glob: false,
+    list: false,
+    task: false,
+    todowrite: false,
+    todoread: false,
+    webfetch: true,
+  },
+  permission: {
+    bash: 'deny',
+    edit: 'deny',
+    write: 'deny',
+    webfetch: 'allow',
+  },
+} as const
 
 /** Elenca le credenziali registrate senza invocare alcun modello. */
 const AUTH_ARGS = ['providers', 'list'] as const
@@ -92,6 +139,11 @@ export class OpenCodeProvider implements AiProvider {
       providerId: this.id,
       bin: this.options.bin,
       buildArgs: () => [...ASK_ARGS],
+      // OpenCode legge `opencode.json` dalla cwd: la policy vive e muore con la
+      // cartella temporanea, senza toccare la configurazione del server.
+      prepare: async (workdir) => {
+        await writeFile(join(workdir, 'opencode.json'), JSON.stringify(TOOLS_POLICY), 'utf8')
+      },
       context,
       prompt,
       timeoutMs: this.options.timeoutMs,

@@ -224,9 +224,14 @@ describe('renderContextPrompt', () => {
     expect(prompt).toContain('never recommend buying one of them unless it is also listed')
   })
 
-  it('vieta esplicitamente comandi, file e tool', () => {
+  it('vieta comandi e file, e concede i soli strumenti di rete', () => {
     expect(prompt).toContain(
-      'Reply with text only. Do not run commands, do not read or write files, do not use any tool.'
+      'Do not run commands, do not read or write files, do not use any tool other than WebSearch'
+    )
+    expect(prompt).toContain('you may use WebSearch and WebFetch')
+    // I numeri dell'asta restano quelli del contesto, anche potendo cercare online.
+    expect(prompt).toContain(
+      'Never invent prices, quotations or statistics that are not in the context above.'
     )
   })
 })
@@ -241,7 +246,8 @@ describe('parseAdvice', () => {
       reasoning: 'Vale il prezzo',
       alternatives: ['Bastoni'],
     })
-    expect(text).toBe(raw)
+    // Il consiglio si vede nella scheda: senza prosa attorno non resta testo da stampare.
+    expect(text).toBe('')
   })
 
   it('estrae un consiglio da un fence markdown in coda al testo', () => {
@@ -259,7 +265,8 @@ describe('parseAdvice', () => {
     expect(advice?.suggestedMaxPrice).toBe(38)
     expect(advice?.confidence).toBe(0.7)
     expect(advice?.alternatives).toEqual([])
-    expect(text).toContain('Dimarco a 43')
+    // La prosa resta, il blocco reso come scheda no: niente JSON stampato due volte.
+    expect(text).toBe('Dimarco a 43 e caro ma sostenibile.')
   })
 
   it("preferisce l'ultimo blocco JSON valido", () => {

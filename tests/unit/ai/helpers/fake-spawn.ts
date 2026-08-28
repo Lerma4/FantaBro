@@ -9,6 +9,8 @@
  * quindi ogni spec ha comunque la propria istanza.
  */
 import { EventEmitter } from 'node:events'
+import { readFileSync, readdirSync } from 'node:fs'
+import { join } from 'node:path'
 import { PassThrough } from 'node:stream'
 import { vi } from 'vitest'
 
@@ -42,6 +44,26 @@ export interface SpawnCall {
   shell: boolean
   /** Quello che è stato scritto su stdin del processo. */
   stdin: string
+  /**
+   * File presenti nella cwd nell'istante della `spawn`, per nome e contenuto.
+   * Si leggono qui perché la cartella temporanea viene cancellata appena il
+   * comando termina: dopo, un test non troverebbe piu nulla da verificare.
+   */
+  cwdFiles: Record<string, string>
+}
+
+/** Istantanea della cwd: best-effort, una cartella assente non e un errore del test. */
+function readCwdFiles(cwd?: string): Record<string, string> {
+  if (!cwd) return {}
+  try {
+    return Object.fromEntries(
+      readdirSync(cwd, { withFileTypes: true })
+        .filter((entry) => entry.isFile())
+        .map((entry) => [entry.name, readFileSync(join(cwd, entry.name), 'utf8')])
+    )
+  } catch {
+    return {}
+  }
 }
 
 /** Rimuove il prefisso dell'interprete batch, se presente. */
@@ -90,6 +112,7 @@ function createFakeSpawn() {
       env: options.env ?? {},
       shell: options.shell ?? false,
       stdin: '',
+      cwdFiles: readCwdFiles(options.cwd),
     }
     calls.push(call)
     child.stdin.on('data', (chunk: Buffer | string) => {

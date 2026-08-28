@@ -1670,6 +1670,15 @@ Therefore:
 - do not let the AI write directly to PostgreSQL;
 - do not let an AI answer mutate auction state automatically.
 
+Read-only web access (WebSearch/WebFetch) IS allowed: injuries, suspensions and expected line-ups
+are not in the listone, and an advisor that cannot see them is wrong exactly when it matters most.
+Prices, quotations and budget still come only from the sanitized `AuctionContext`.
+
+The tool perimeter must be enforced per CLI, and enforcement must be *verified against the real
+CLI*, not assumed from its flags. Verified 2026-08-21: omitting OpenCode's `--auto` does NOT block
+anything — it runs shell commands from a plain prompt — and a `permission` deny is bypassed via
+subagent delegation. Only an explicit `tools` allowlist held. Re-verify on every CLI upgrade.
+
 Flow:
 
 ```text

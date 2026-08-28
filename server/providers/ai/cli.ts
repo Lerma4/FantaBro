@@ -157,6 +157,12 @@ export interface CliAskParams {
   prompt: string
   timeoutMs: number
   env?: Record<string, string>
+  /**
+   * Scrive nella cartella temporanea i file che la CLI cerca nella cwd prima di
+   * partire. È l'unico modo di imporre una policy a una CLI che la legge solo da
+   * file di configurazione, e resta per invocazione: nessuno stato condiviso.
+   */
+  prepare?: (workdir: string) => Promise<void>
 }
 
 /**
@@ -171,15 +177,16 @@ export async function runCliAsk(params: CliAskParams): Promise<AiResponse> {
   const fullPrompt = renderContextPrompt(params.context, params.prompt)
   const startedAt = Date.now()
 
-  const result = await withTempDir(async (workdir) =>
-    runCommand(bin, params.buildArgs(workdir), {
+  const result = await withTempDir(async (workdir) => {
+    await params.prepare?.(workdir)
+    return runCommand(bin, params.buildArgs(workdir), {
       timeoutMs,
       // Il prompt su stdin: fuori da `argv`, quindi fuori da `ps`.
       input: fullPrompt,
       cwd: workdir,
       env: params.env,
     })
-  )
+  })
 
   const durationMs = Date.now() - startedAt
 

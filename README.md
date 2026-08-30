@@ -312,9 +312,33 @@ proprio limite di body — vedi la sezione sui limiti di upload qui sotto.
 
 ## Deploy su Kubernetes
 
-I manifest sono in [`k8s/`](k8s/), con il proprio
-[README](k8s/README.md): ordine di deploy, Job delle migrazioni, procedura di
-login iniziale di Codex e configurazione consigliata della CLI.
+I manifest generici sono in [`k8s/`](k8s/), con il proprio
+[README](k8s/README.md). Sul server K3s LonghiDev il deploy e gestito invece
+da Argo CD nella repository GitOps `Lerma4/k3s-argocd-gitops`, overlay
+`apps/fantabro/overlays/fantabro/`.
+
+L'overlay pubblica `https://fantabro.longhidev.it` attraverso Traefik,
+cert-manager e il `ClusterIssuer` `letsencrypt-prod`. Prima della prima sync
+creare nel namespace `fantabro` i due Secret non versionati:
+
+```bash
+kubectl create namespace fantabro
+kubectl -n fantabro create secret generic fantabro-secrets \
+  --from-literal=NUXT_DATABASE_URL='postgres://...' \
+  --from-literal=DATABASE_URL='postgres://...' \
+  --from-literal=NUXT_BETTER_AUTH_SECRET="$(openssl rand -base64 48)"
+kubectl -n fantabro create secret generic fantabro-seed \
+  --from-literal=SEED_ADMIN_EMAIL='admin@example.com' \
+  --from-literal=SEED_ADMIN_PASSWORD='scegli-una-password-sicura' \
+  --from-literal=SEED_ADMIN_NAME='Admin'
+```
+
+Il workflow GitHub Actions `Publish FantaBro images` pubblica le immagini su
+GHCR a ogni push su `main` e aggiorna l'overlay GitOps. Richiede il secret
+repository `GITOPS_REPO_TOKEN`, con accesso in scrittura alla repository GitOps.
+La prima sync Argo CD esegue le migrazioni prima dell'app e il seed idempotente
+dell'ADMIN dopo la sync. Il login Codex resta un'operazione amministrativa sul
+pod `codex-worker-0`.
 
 In sintesi: FantaBro è un `Deployment` stateless scalabile dietro Ingress; il
 codex-worker è uno `StatefulSet` a una replica con PVC, Service ClusterIP e

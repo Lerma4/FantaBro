@@ -64,3 +64,17 @@ USER node
 # proprio nel Job che applica le migrazioni. Lo shim di pnpm imposta già il
 # `NODE_PATH` che serve al layout isolato di `node_modules`.
 CMD ["node_modules/.bin/drizzle-kit", "migrate"]
+
+# ---------------------------------------------------------------------------
+# Stage per il seed idempotente dell'ADMIN iniziale. Viene eseguito solo dal
+# Job PostSync e riceve le credenziali dell'admin da un Secret separato.
+FROM base AS seed
+ENV NODE_ENV=production
+COPY --from=deps /app/node_modules ./node_modules
+COPY package.json pnpm-lock.yaml ./
+COPY tsconfig.tools.json ./
+COPY scripts ./scripts
+COPY server/database ./server/database
+COPY shared ./shared
+USER node
+CMD ["node_modules/.bin/tsx", "scripts/seed.ts"]

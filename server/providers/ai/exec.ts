@@ -20,7 +20,7 @@ import { spawn } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { delimiter, extname, isAbsolute, join, sep } from 'node:path'
+import { delimiter, join, win32 } from 'node:path'
 import { AiProviderError } from '#shared/types/ai'
 
 export interface RunCommandOptions {
@@ -173,24 +173,24 @@ export function resolveWindowsExecutable(
   })
 
   const classify = (fullPath: string): ResolvedCommand => {
-    const ext = extname(fullPath).toLowerCase()
+    const ext = win32.extname(fullPath).toLowerCase()
     if (BATCH_EXTENSIONS.has(ext)) return viaCmd(fullPath)
     return { command: fullPath, prefixArgs: [], viaCmd: false }
   }
 
   // Percorso già esplicito: niente da cercare, serve solo capire come lanciarlo.
-  if (isAbsolute(bin) || bin.includes(sep) || bin.includes('/')) {
+  if (win32.isAbsolute(bin) || bin.includes(win32.sep) || bin.includes('/')) {
     return classify(bin)
   }
 
   // Se il nome porta già un'estensione eseguibile, non si prova ad aggiungerne altre.
-  const declared = extname(bin).toLowerCase()
+  const declared = win32.extname(bin).toLowerCase()
   const suffixes =
     NATIVE_EXTENSIONS.has(declared) || BATCH_EXTENSIONS.has(declared) ? [''] : options.extensions
 
   for (const dir of options.pathDirs) {
     for (const suffix of suffixes) {
-      const candidate = join(dir, bin + suffix)
+      const candidate = win32.join(dir, bin + suffix)
       if (options.exists(candidate)) return classify(candidate)
     }
   }

@@ -513,6 +513,60 @@ stato a tratti rosso per file fuori da questo perimetro (all'ultima esecuzione:
 
 ---
 
+## Infrastruttura — deploy GitOps K3s LonghiDev
+
+### Implementato
+
+- `Dockerfile` — stage `seed` per creare in modo idempotente l'ADMIN iniziale
+  senza esporre le credenziali al pod applicativo.
+- `.github/workflows/publish.yml` — pubblica le immagini app, migrazione, seed
+  e Codex worker su GHCR a ogni push su `main`, poi aggiorna il tag immutabile
+  nell'overlay GitOps con `GITOPS_REPO_TOKEN`.
+- `README.md` — documenta il deploy Argo CD su
+  `https://fantabro.longhidev.it`, i due Secret creati fuori da Git e la
+  procedura di prima sync.
+
+### Note
+
+- I manifest effettivi del server risiedono nella repository separata
+  `Lerma4/k3s-argocd-gitops`: ApplicationSet `fantabro`, Traefik, cert-manager
+  e `ClusterIssuer` `letsencrypt-prod`. La migrazione e un hook Argo CD
+  `PreSync`; il seed e un hook `PostSync` idempotente.
+- Pi non e incluso nel deploy.
+- Il deployment del server a 4 GB usa una sola replica dell'app e limiti di 512
+  MiB per app e worker Codex; il `ResourceQuota` dell'overlay limita tutto il
+  namespace a 1,25 GiB, inclusi i Job temporanei.
+
+---
+
+## Infrastruttura — CloudNativePG sul cluster K3s
+
+### Implementato
+
+- `k3s-argocd-gitops/clusters/cloudnative-pg.yaml` — operator CloudNativePG
+  tramite chart ufficiale `0.29.0`, con limiti adatti al nodo da 4 GB.
+- `k3s-argocd-gitops/apps/postgresql/` — cluster PostgreSQL 17 a una replica,
+  database `fantabro`, ruolo non amministrativo, PVC da 5 GiB e Service interno.
+- `k3s-argocd-gitops/apps/postgresql/base/storage-class.yaml` — StorageClass
+  `local-path-retain`, per non eliminare i dati se il PVC viene cancellato.
+- NetworkPolicy e ResourceQuota — PostgreSQL accetta solo FantaBro e l'operator
+  CNPG; il pod e limitato a 384 MiB.
+
+### Validazione
+
+- `kubectl kustomize apps/postgresql/overlays/database`: PASS.
+- `kubectl apply --dry-run=client` per Application CNPG e ApplicationSet PostgreSQL: PASS.
+- `pnpm lint`, `pnpm typecheck`, `pnpm test` (357 passati, 50 saltati),
+  `pnpm format:check`, `pnpm build`: PASS.
+
+### Note
+
+- Nessun manifest e stato applicato al cluster.
+- Backup e WAL archiving sono intenzionalmente fuori da questa prima fase; il
+  PVC retained non protegge da guasto del nodo o del disco.
+
+---
+
 ## Verifica end-to-end della catena AI — eseguita il 2026-08-19
 
 Non è una feature: è il verbale di una prova reale, tenuto qui perché è la sola

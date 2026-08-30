@@ -1,0 +1,61 @@
+name: Publish FantaBro images
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  IMAGE_PREFIX: ghcr.io/lerma4/fantabro
+  GITOPS_REPOSITORY: Lerma4/k3s-argocd-gitops
+  GITOPS_OVERLAY_FILE: apps/fantabro/overlays/fantabro/kustomization.yaml
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push images
+        env:
+          SHORT_SHA: ${{ github.sha }}
+        run: |
+          TAG="sha-${SHORT_SHA::7}"
+          docker build --target runtime -t "$IMAGE_PREFIX:$TAG" .
+          docker build --target migrate -t "$IMAGE_PREFIX-migrate:$TAG" .
+          docker build --target seed -t "$IMAGE_PREFIX-seed:$TAG" .
+          docker build -f Dockerfile.codex-worker -t "$IMAGE_PREFIX-codex-worker:$TAG" .
+          docker push "$IMAGE_PREFIX:$TAG"
+          docker push "$IMAGE_PREFIX-migrate:$TAG"
+          docker push "$IMAGE_PREFIX-seed:$TAG"
+          docker push "$IMAGE_PREFIX-codex-worker:$TAG"
+
+      - name: Update GitOps image tags
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.GITOPS_REPOSITORY }}
+          token: ${{ secrets.GITOPS_REPO_TOKEN }}
+          path: gitops
+
+      - name: Commit GitOps image tags
+        env:
+          SHORT_SHA: ${{ github.sha }}
+        working-directory: gitops
+        run: |
+          TAG="sha-${SHORT_SHA::7}"
+          perl -0pi -e "s/newTag: sha-[^\n]+/newTag: $TAG/g" "$GITOPS_OVERLAY_FILE"
+          git add "$GITOPS_OVERLAY_FILE"
+          if git diff --cached --quiet; then exit 0; fi
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" commit -m "chore: deploy FantaBro $TAG"
+          git push

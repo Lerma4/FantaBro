@@ -812,3 +812,37 @@ sono nomi di strumenti, e un rename li rende silenziosamente inefficaci.
 Nessuna CLI reale viene invocata dai test: girano senza `claude`, `codex` o `opencode`
 installati, senza rete e senza consumare quota. La prova che il perimetro regga davvero
 resta quella manuale del 2026-08-21, da ripetere a ogni aggiornamento delle CLI.
+
+---
+
+## Feature 34 — Messaggi di validazione leggibili in italiano
+
+### Implementato
+
+- `app/plugins/zod-locale.ts`: sostituiti i messaggi tecnici della locale Zod con
+  messaggi brevi e orientati all'utente per campi obbligatori, limiti di testo,
+  numeri, formati email/URL e opzioni non valide.
+- `shared/schemas/common.ts`: tradotto il messaggio esplicito della stagione.
+- Aggiornata la regressione del form prezzo al nuovo testo utente.
+
+### Modifiche database
+
+- Nessuna.
+
+### Test
+
+- `tests/component/price-form.spec.ts`: 11/11 PASS.
+- Suite completa: 357 PASS, 50 skipped.
+
+### Validazione
+
+- pnpm lint: PASS
+- pnpm typecheck: PASS
+- pnpm test: PASS
+- pnpm format:check: PASS
+- pnpm build: non eseguito
+
+### Note
+
+- La validazione resta centralizzata nel plugin Zod; non sono state aggiunte
+  traduzioni duplicate nei singoli componenti.

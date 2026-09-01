@@ -136,7 +136,7 @@ describe('PriceForm in modalita COMPRA', () => {
     await new Promise((resolve) => setTimeout(resolve, 100))
 
     expect(lastPurchase).toBeNull()
-    expect(wrapper.text()).toMatch(/numero/i)
+    expect(wrapper.text()).toMatch(/valore/i)
   })
 })
 

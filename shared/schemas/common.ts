@@ -17,7 +17,7 @@ export const memberRoleSchema = z.enum(ASSIGNABLE_MEMBER_ROLES)
 export const seasonSchema = z
   .string()
   .trim()
-  .regex(/^\d{4}\/\d{2}$/, 'season must look like 2026/27')
+  .regex(/^\d{4}\/\d{2}$/, 'Inserisci la stagione nel formato 2026/27.')
 
 export const roleSlotsSchema = z.object({
   P: z.number().int().min(0).max(30),

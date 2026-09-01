@@ -43,6 +43,8 @@ import { classifyFailure, runCommand, sanitizeDetail, withTempDir } from './exec
  */
 const CODEX_ASK_ARGS = [
   'exec',
+  '-c',
+  'tools.web_search=true',
   '--sandbox',
   'read-only',
   '--skip-git-repo-check',
@@ -70,6 +72,8 @@ export interface WorkerConfig {
   port: number
   codexBin: string
   codexHome: string
+  codexModel?: string
+  reasoningEffort?: string
   timeoutMs: number
   maxPending: number
 }
@@ -81,6 +85,8 @@ export function readConfig(): WorkerConfig {
     port: envNumber('CODEX_WORKER_PORT', 8787),
     codexBin: process.env.CODEX_BIN ?? 'codex',
     codexHome: process.env.CODEX_HOME ?? '/var/lib/codex',
+    codexModel: process.env.CODEX_MODEL,
+    reasoningEffort: process.env.CODEX_REASONING_EFFORT,
     timeoutMs: envNumber('CODEX_WORKER_TIMEOUT_MS', 120_000),
     maxPending: envNumber('CODEX_WORKER_MAX_PENDING', 8),
   }
@@ -331,13 +337,26 @@ export function createWorkerDeps(config: WorkerConfig): WorkerDeps {
     }
 
     const result = await withTempDir(async (workdir) =>
-      runCommand(config.codexBin, [...CODEX_ASK_ARGS, '--cd', workdir, '-'], {
-        timeoutMs,
-        // Prompt su stdin: fuori da `argv` e quindi da `ps`.
-        input: prompt,
-        cwd: workdir,
-        env,
-      })
+      runCommand(
+        config.codexBin,
+        [
+          ...CODEX_ASK_ARGS,
+          ...(config.codexModel ? ['--model', config.codexModel] : []),
+          ...(config.reasoningEffort
+            ? ['-c', `model_reasoning_effort=${config.reasoningEffort}`]
+            : []),
+          '--cd',
+          workdir,
+          '-',
+        ],
+        {
+          timeoutMs,
+          // Prompt su stdin: fuori da `argv` e quindi da `ps`.
+          input: prompt,
+          cwd: workdir,
+          env,
+        }
+      )
     )
 
     if (result.code !== 0) {

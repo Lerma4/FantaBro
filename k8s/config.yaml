@@ -43,6 +43,8 @@ data:
   # Deve coincidere con il mountPath del PersistentVolumeClaim (spec §37).
   CODEX_HOME: '/var/lib/codex'
   CODEX_BIN: 'codex'
+  CODEX_MODEL: 'gpt-5.6-luna'
+  CODEX_REASONING_EFFORT: 'low'
   CODEX_WORKER_TIMEOUT_MS: '120000'
   # Coda interna: la concorrenza è fissa a 1, questo è solo quante richieste
   # possono attendere prima di ricevere PROVIDER_BUSY.

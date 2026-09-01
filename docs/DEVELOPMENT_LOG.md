@@ -846,3 +846,66 @@ resta quella manuale del 2026-08-21, da ripetere a ogni aggiornamento delle CLI.
 
 - La validazione resta centralizzata nel plugin Zod; non sono state aggiunte
   traduzioni duplicate nei singoli componenti.
+
+---
+
+## Feature 35 — Modello Codex rapido con ricerca web
+
+### Implementato
+
+- Il worker Codex abilita `tools.web_search` per le ricerche online.
+- Il modello e il livello di reasoning sono configurabili via ConfigMap:
+  `gpt-5.6-luna` e `low` nell'overlay Kubernetes attuale.
+
+### Modifiche database
+
+- Nessuna.
+
+### Test
+
+- Suite completa: 357 passati, 50 skipped.
+
+### Validazione
+
+- pnpm lint: PASS
+- pnpm typecheck: PASS
+- pnpm test: PASS
+- pnpm format:check: PASS
+- pnpm build: PASS
+
+### Note
+
+- Il modello viene passato con `--model`; il reasoning con
+  `model_reasoning_effort`, senza inserire credenziali nei manifest.
+- L'immagine worker installa `ca-certificates`, necessario alla CLI nativa per
+  validare i certificati TLS degli endpoint ChatGPT/OpenAI.
+
+---
+
+## Feature 36 — Gestione utenti ADMIN
+
+### Implementato
+
+- Pagina `Impostazioni > Utenti` visibile agli ADMIN: elenco, creazione con
+  email/password e cambio del ruolo applicativo.
+- Route protette `/api/users`: le credenziali sono create da Better Auth, quindi
+  l'app non gestisce hash o account password direttamente.
+- Il cambio ruolo blocca transazionalmente la rimozione dell'ultimo ADMIN.
+
+### Modifiche database
+
+- Nessuna.
+
+### Test
+
+- `tests/unit/services/users.spec.ts`: creazione, elenco e protezione
+  dell'ultimo ADMIN.
+- Suite completa: 360 passati, 50 skipped.
+
+### Validazione
+
+- pnpm lint: PASS
+- pnpm typecheck: PASS
+- pnpm test: PASS
+- pnpm format:check: PASS
+- pnpm build: in esecuzione

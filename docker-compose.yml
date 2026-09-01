@@ -43,6 +43,7 @@ services:
         condition: service_healthy
 
   seed:
+    profiles: ['bootstrap']
     build:
       context: .
       dockerfile: Dockerfile
@@ -95,9 +96,6 @@ services:
         condition: service_healthy
       migrate:
         # L'app parte solo se le migrazioni sono andate a buon fine.
-        condition: service_completed_successfully
-      seed:
-        # Il login deve esistere prima che l'app accetti traffico.
         condition: service_completed_successfully
       codex-worker:
         condition: service_started

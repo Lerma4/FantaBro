@@ -74,6 +74,13 @@ feature che ha cambiato lo schema.
 Non esiste registrazione pubblica: il primo account si crea con `pnpm db:seed` e
 gli altri utenti li invita un ADMIN.
 
+In Docker Compose il seed non parte a ogni rilascio: eseguilo solo al primo
+bootstrap o quando cambi le variabili `SEED_ADMIN_*`.
+
+```bash
+docker compose --profile bootstrap run --rm seed
+```
+
 Un ADMIN può anche **rimuovere un giocatore dal listone**, dal cestino in fondo alla
 sua riga. È un'operazione sulla **stagione**, non sull'asta da cui parte: il giocatore
 sparisce da tutte le aste di quella stagione, insieme a statistiche e target, e si torna

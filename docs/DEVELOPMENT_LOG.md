@@ -1054,3 +1054,23 @@ resta quella manuale del 2026-08-21, da ripetere a ogni aggiornamento delle CLI.
 - pnpm test: PASS (361 passati, 50 skipped)
 - pnpm format:check: PASS
 - pnpm build: PASS
+
+---
+
+## Feature 42 — Seed esplicito in Docker Compose
+
+### Implementato
+
+- Il servizio `seed` ora appartiene al profilo `bootstrap` e non blocca più
+  l'avvio dell'app a ogni deploy Compose.
+- Le migrazioni restano nel percorso di avvio; il seed si esegue esplicitamente
+  con `docker compose --profile bootstrap run --rm seed`.
+
+### Validazione
+
+- docker compose config --quiet: PASS
+- pnpm lint: PASS
+- pnpm typecheck: PASS
+- pnpm test: PASS (361 passati, 50 skipped)
+- pnpm format:check: PASS
+- pnpm build: PASS

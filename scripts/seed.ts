@@ -70,11 +70,15 @@ try {
 
   if (existing) {
     if (existing.role === 'ADMIN') {
+      await db
+        .update(schema.users)
+        .set({ isBootstrapAdmin: true, updatedAt: new Date() })
+        .where(eq(schema.users.id, existing.id))
       console.log(`Utente ADMIN ${email} già presente: nulla da fare.`)
     } else {
       await db
         .update(schema.users)
-        .set({ role: 'ADMIN', updatedAt: new Date() })
+        .set({ role: 'ADMIN', isBootstrapAdmin: true, updatedAt: new Date() })
         .where(eq(schema.users.id, existing.id))
       console.log(`Utente ${email} già presente: promosso ad ADMIN.`)
     }
@@ -82,7 +86,7 @@ try {
     await auth.api.signUpEmail({ body: { email, password, name } })
     await db
       .update(schema.users)
-      .set({ role: 'ADMIN', emailVerified: true, updatedAt: new Date() })
+      .set({ role: 'ADMIN', isBootstrapAdmin: true, emailVerified: true, updatedAt: new Date() })
       .where(eq(schema.users.email, email))
     console.log(`Creato utente ADMIN ${email} (${name}).`)
   }

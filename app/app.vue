@@ -4,6 +4,7 @@ const { t } = useI18n()
 useHead({
   titleTemplate: (title) => (title ? `${title} - FantaBro` : 'FantaBro'),
   htmlAttrs: { lang: 'it' },
+  link: [{ rel: 'icon', type: 'image/x-icon', href: '/favicon.ico' }],
 })
 </script>
 

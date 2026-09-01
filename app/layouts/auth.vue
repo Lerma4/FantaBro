@@ -15,6 +15,9 @@ const { t } = useI18n()
         <slot />
       </div>
     </main>
-    <p class="etichetta px-4 pb-6 text-center">{{ t('app.tagline') }}</p>
+    <div class="pb-3 text-center">
+      <p class="etichetta px-4">{{ t('app.tagline') }}</p>
+      <AppFooter />
+    </div>
   </div>
 </template>

@@ -19,6 +19,8 @@ export const users = pgTable(
     image: text('image'),
     /** Ruolo applicativo FantaBro (spec §8), non un campo di Better Auth. */
     role: text('role').$type<AppRole>().notNull().default('MEMBER'),
+    /** Il primo ADMIN creato dal bootstrap non può essere degradato. */
+    isBootstrapAdmin: boolean('is_bootstrap_admin').notNull().default(false),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },

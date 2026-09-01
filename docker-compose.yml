@@ -26,9 +26,9 @@ services:
       timeout: 5s
       retries: 12
       start_period: 10s
-    # Nessuna porta esposta all'host: solo la rete interna del compose.
-    expose:
-      - '5432'
+    # Pubblicata su 5433: 5432 è già usata dal database del devcontainer.
+    ports:
+      - '5433:5432'
 
   migrate:
     build:
@@ -37,10 +37,29 @@ services:
       target: migrate
     restart: 'no'
     environment:
-      DATABASE_URL: ${DATABASE_URL:-postgres://fantabro:fantabro@postgres:5432/fantabro}
+      DATABASE_URL: postgres://${POSTGRES_USER:-fantabro}:${POSTGRES_PASSWORD:-fantabro}@postgres:5432/${POSTGRES_DB:-fantabro}
     depends_on:
       postgres:
         condition: service_healthy
+
+  seed:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: seed
+    restart: 'no'
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-fantabro}:${POSTGRES_PASSWORD:-fantabro}@postgres:5432/${POSTGRES_DB:-fantabro}
+      NUXT_BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?BETTER_AUTH_SECRET è obbligatorio}
+      NUXT_BETTER_AUTH_URL: ${BETTER_AUTH_URL:-http://localhost:3000}
+      SEED_ADMIN_EMAIL: ${SEED_ADMIN_EMAIL:?SEED_ADMIN_EMAIL è obbligatorio}
+      SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:?SEED_ADMIN_PASSWORD è obbligatorio}
+      SEED_ADMIN_NAME: ${SEED_ADMIN_NAME:-Admin}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
 
   app:
     build:
@@ -53,8 +72,8 @@ services:
     environment:
       HOST: 0.0.0.0
       PORT: '3000'
-      NUXT_DATABASE_URL: ${DATABASE_URL:-postgres://fantabro:fantabro@postgres:5432/fantabro}
-      DATABASE_URL: ${DATABASE_URL:-postgres://fantabro:fantabro@postgres:5432/fantabro}
+      NUXT_DATABASE_URL: postgres://${POSTGRES_USER:-fantabro}:${POSTGRES_PASSWORD:-fantabro}@postgres:5432/${POSTGRES_DB:-fantabro}
+      DATABASE_URL: postgres://${POSTGRES_USER:-fantabro}:${POSTGRES_PASSWORD:-fantabro}@postgres:5432/${POSTGRES_DB:-fantabro}
       NUXT_BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?BETTER_AUTH_SECRET è obbligatorio}
       NUXT_BETTER_AUTH_URL: ${BETTER_AUTH_URL:-http://localhost:3000}
       # In questa immagine `claude` e `opencode` NON sono installati (vedi
@@ -76,6 +95,9 @@ services:
         condition: service_healthy
       migrate:
         # L'app parte solo se le migrazioni sono andate a buon fine.
+        condition: service_completed_successfully
+      seed:
+        # Il login deve esistere prima che l'app accetti traffico.
         condition: service_completed_successfully
       codex-worker:
         condition: service_started

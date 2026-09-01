@@ -1,7 +1,9 @@
 {
   "app": {
     "name": "FantaBro",
-    "tagline": "Il tuo banco durante l'asta"
+    "tagline": "Il tuo banco durante l'asta",
+    "repository": "Progetto",
+    "version": "Versione {version}"
   },
   "common": {
     "advisory": "Valori consultivi: non bloccano gli acquisti.",
@@ -28,6 +30,7 @@
     "logout": "Esci",
     "roster": "Rosa",
     "settings": "Impostazioni",
+    "users": "Utenti",
     "targets": "Target",
     "themeToggle": "Cambia tema chiaro/scuro"
   },
@@ -90,6 +93,10 @@
     "OWNER": "Proprietario",
     "EDITOR": "Editor",
     "VIEWER": "Lettore"
+  },
+  "appRole": {
+    "ADMIN": "Amministratore",
+    "MEMBER": "Membro"
   },
   "players": {
     "buy": "Compra",
@@ -363,6 +370,17 @@
       "WHERE_SHOULD_I_SPEND": "Dove conviene spendere?"
     }
   },
+  "users": {
+    "adminOnly": "Pagina riservata agli amministratori.",
+    "created": "Utente creato.",
+    "create": "Crea utente",
+    "email": "Email",
+    "name": "Nome",
+    "password": "Password",
+    "role": "Ruolo",
+    "roleUpdated": "Ruolo aggiornato.",
+    "title": "Utenti"
+  },
   "errors": {
     "UNAUTHORIZED": "Sessione non valida. Accedi di nuovo.",
     "FORBIDDEN": "Non hai i permessi per questa operazione.",
@@ -381,6 +399,8 @@
     "REMAINING_SLOTS_UNFILLABLE": "A questo prezzo non riesci più a completare gli slot obbligatori.",
     "PRICE_BELOW_MINIMUM": "Il prezzo è sotto il costo minimo per giocatore.",
     "CONFLICT": "Un altro utente ha già modificato questo giocatore. Ricarica e riprova.",
+    "LAST_ADMIN_REQUIRED": "Deve restare almeno un amministratore.",
+    "BOOTSTRAP_ADMIN_IMMUTABLE": "L'amministratore iniziale non può cambiare ruolo.",
     "IMPORT_INVALID_FILE": "File non leggibile. Serve un file XLSX valido.",
     "IMPORT_MISSING_COLUMNS": "Mancano colonne obbligatorie nel listone.",
     "IMPORT_NO_VALID_ROWS": "Nessuna riga valida da importare.",

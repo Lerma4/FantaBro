@@ -86,6 +86,15 @@ async function logout() {
           :aria-label="t('nav.aiSettings')"
           :title="t('nav.aiSettings')"
         />
+        <UButton
+          v-if="isAdmin"
+          to="/settings/users"
+          icon="i-lucide-users"
+          color="neutral"
+          variant="ghost"
+          :aria-label="t('nav.users')"
+          :title="t('nav.users')"
+        />
         <ThemeToggle />
         <UButton
           v-if="user"

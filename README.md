@@ -56,6 +56,18 @@ pnpm db:studio      # ispeziona il database
 pnpm db:seed        # crea il primo utente ADMIN (legge SEED_ADMIN_*)
 ```
 
+Per sviluppo ibrido, PostgreSQL gira in Docker mentre Nuxt gira sull'host:
+
+```bash
+docker compose up -d --wait postgres
+pnpm db:migrate
+pnpm db:seed
+pnpm dev
+```
+
+Compose usa automaticamente il nome interno `postgres`; `pnpm dev` usa invece
+`localhost:5433`, configurato in `.env` per non confliggere con il devcontainer.
+
 I file generati in `server/database/migrations/` vanno committati insieme alla
 feature che ha cambiato lo schema.
 

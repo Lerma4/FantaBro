@@ -28,6 +28,7 @@ export interface User {
   email: string
   name: string
   role: AppRole
+  isBootstrapAdmin: boolean
   createdAt: Date
   updatedAt: Date
 }

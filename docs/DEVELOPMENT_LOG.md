@@ -97,6 +97,41 @@ Formato:
 - pnpm typecheck: PASS
 - pnpm test: PASS su `tests/unit/ai` (112/112)
 - pnpm build: PASS
+
+---
+
+## Feature 39 — PostgreSQL locale su porta non confliggente
+
+### Implementato
+
+- PostgreSQL Compose è pubblicato su `localhost:5433`, perché `localhost:5432`
+  è già occupata dal database del devcontainer.
+- `.env` usa `localhost:5433` per `pnpm dev`; i container continuano a usare
+  `postgres:5432` sulla rete interna.
+
+---
+
+## Feature 38 — Blocco ADMIN iniziale
+
+### Implementato
+
+- L'account creato dal seed viene marcato `isBootstrapAdmin`.
+- Il ruolo dell'ADMIN iniziale è disabilitato nella UI e protetto anche lato API.
+- Il seed aggiorna il flag anche su installazioni già inizializzate.
+
+### Modifiche database
+
+- Generata migrazione Drizzle `0001_simple_omega_sentinel.sql`.
+
+### Validazione
+
+- pnpm db:generate: PASS
+- pnpm lint: PASS
+- pnpm typecheck: PASS
+- pnpm test: PASS (361 passati, 50 skipped)
+- pnpm format:check: PASS
+- pnpm build: PASS
+
 - pnpm format:check: PASS
 
 Tutti e quattro eseguiti davvero e verdi sui file di questa feature. Nella stessa
@@ -908,4 +943,114 @@ resta quella manuale del 2026-08-21, da ripetere a ogni aggiornamento delle CLI.
 - pnpm typecheck: PASS
 - pnpm test: PASS
 - pnpm format:check: PASS
-- pnpm build: in esecuzione
+- pnpm build: PASS
+
+---
+
+## Feature 37 — Bootstrap ADMIN in Docker Compose
+
+### Implementato
+
+- `docker-compose.yml`: aggiunto il servizio `seed`, eseguito dopo le migrazioni
+  e prima dell'app; crea in modo idempotente l'ADMIN configurato in `.env`.
+
+### Modifiche database
+
+- Nessuna.
+
+### Validazione
+
+- docker compose config --quiet: PASS
+- pnpm lint: PASS
+- pnpm typecheck: PASS
+- pnpm test: PASS (360 passati, 50 skipped)
+- pnpm format:check: PASS
+- pnpm build: PASS
+
+---
+
+## Feature 38 — Favicon FantaBro
+
+### Implementato
+
+- `public/favicon.svg`: logo compatto con le lettere `F` e `B`, usando i colori
+  del logo nell'header.
+- `public/favicon.ico`: favicon generato nelle dimensioni 16, 32, 48 e 64 px.
+- `app/app.vue`: favicon collegato globalmente tramite `useHead`.
+
+### Modifiche database
+
+- Nessuna.
+
+### Validazione
+
+- `magick identify public/favicon.ico`: PASS
+- `pnpm lint`: PASS
+- `pnpm typecheck`: PASS
+- `pnpm test`: FALLITO per timeout del bootstrap Nuxt nelle 3 suite component
+  (`analytics.spec.ts`, `listone-row.spec.ts`, `price-form.spec.ts`); 341 test passati,
+  70 skipped.
+- `pnpm format:check`: PASS
+
+### Note
+
+- Nessuna modifica al marchio visualizzato nell'header.
+
+---
+
+## Feature 39 — Blocco ADMIN iniziale
+
+### Implementato
+
+- L'account creato dal seed viene marcato `isBootstrapAdmin`.
+- Il ruolo dell'ADMIN iniziale è disabilitato nella UI e protetto anche lato API.
+- Il seed aggiorna il flag anche su installazioni già inizializzate.
+
+### Modifiche database
+
+- Generata migrazione Drizzle `0001_simple_omega_sentinel.sql`.
+
+### Validazione
+
+- pnpm db:generate: PASS
+- pnpm lint: PASS
+- pnpm typecheck: PASS
+- pnpm test: PASS (361 passati, 50 skipped)
+- pnpm format:check: PASS
+- pnpm build: PASS
+
+---
+
+## Feature 40 — PostgreSQL locale per pnpm dev
+
+### Implementato
+
+- PostgreSQL Compose è pubblicato su `localhost:5433`, perché `localhost:5432`
+  è già occupata dal database del devcontainer.
+- `.env` usa `localhost:5433` per `pnpm dev`; i container continuano a usare
+  `postgres:5432` sulla rete interna.
+
+### Validazione
+
+- docker compose config --quiet: PASS
+
+---
+
+## Feature 41 — Versione applicazione e repository
+
+### Implementato
+
+- Footer minimale condiviso da applicazione e login: versione letta da
+  `package.json` e collegamento al repository GitHub.
+
+### Modifiche database
+
+- Nessuna.
+
+### Validazione
+
+- pnpm lint: PASS
+- pnpm typecheck: PASS
+- pnpm test: PASS (361 passati, 50 skipped)
+- pnpm format:check: PASS
+- pnpm build: PASS

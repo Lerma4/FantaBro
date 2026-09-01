@@ -1,3 +1,5 @@
+import packageJson from './package.json'
+
 // https://nuxt.com/docs/api/configuration/nuxt-config
 export default defineNuxtConfig({
   modules: ['@nuxt/ui', '@nuxt/eslint', '@nuxt/test-utils/module', '@nuxtjs/i18n', '@pinia/nuxt'],
@@ -21,6 +23,8 @@ export default defineNuxtConfig({
     },
     public: {
       appName: 'FantaBro',
+      appVersion: packageJson.version,
+      repositoryUrl: 'https://github.com/Lerma4/FantaBro',
     },
   },
 

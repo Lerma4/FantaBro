@@ -54,6 +54,25 @@ export const auth = betterAuth({
   },
 })
 
+/** Solo il servizio utenti ADMIN usa questa istanza per creare credenziali. */
+export const provisioningAuth = betterAuth({
+  database: drizzleAdapter(db, {
+    provider: 'pg',
+    schema,
+    usePlural: true,
+    transaction: true,
+  }),
+  secret,
+  baseURL,
+  trustedOrigins,
+  emailAndPassword: { enabled: true },
+  user: {
+    additionalFields: {
+      role: { type: 'string', required: false, defaultValue: 'MEMBER', input: false },
+    },
+  },
+})
+
 export interface AuthenticatedUser {
   id: string
   email: string

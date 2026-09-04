@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { CLASSIC_ROLES } from '#shared/constants'
-import type { ClassicRole } from '#shared/types'
+import type { AuctionState, ClassicRole, PlayerRow } from '#shared/types'
 
 interface RosterEntry {
   playerId: string
@@ -15,11 +15,13 @@ const { t } = useI18n()
 const { n, time } = useFormat()
 const { auctionId, store } = useAuctionPage()
 const toastError = useToastError()
+const toastOk = useToastOk()
 
 useHead({ title: computed(() => t('roster.title')) })
 
 const players = ref<RosterEntry[]>([])
 const loaded = ref(false)
+const reverting = ref<string | null>(null)
 
 onMounted(async () => {
   try {
@@ -42,6 +44,23 @@ const byRole = computed(() =>
       .sort((a, b) => b.purchasePrice - a.purchasePrice),
   }))
 )
+
+async function revert(player: RosterEntry) {
+  reverting.value = player.playerId
+  try {
+    const res = await apiFetch<{ state: AuctionState; row: PlayerRow }>(
+      `/api/auctions/${auctionId}/players/revert`,
+      { method: 'POST', body: { playerId: player.playerId } }
+    )
+    store.applyServerState(res.state)
+    players.value = players.value.filter(({ playerId }) => playerId !== player.playerId)
+    toastOk(t('events.revertDone'))
+  } catch (err) {
+    toastError(err)
+  } finally {
+    reverting.value = null
+  }
+}
 </script>
 
 <template>
@@ -134,6 +153,15 @@ const byRole = computed(() =>
               <span class="tabellare w-14 text-right font-semibold">
                 {{ n(player.purchasePrice) }}
               </span>
+              <UButton
+                size="xs"
+                color="neutral"
+                variant="ghost"
+                icon="i-lucide-undo-2"
+                :loading="reverting === player.playerId"
+                :aria-label="`${t('events.revert')}: ${player.name}`"
+                @click="revert(player)"
+              />
             </li>
           </ul>
           <p v-else class="mt-2 text-sm opacity-50">{{ t('common.empty') }}</p>

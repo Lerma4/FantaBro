@@ -1,4 +1,4 @@
-import { and, count, desc, eq } from 'drizzle-orm'
+import { and, count, desc, eq, isNull } from 'drizzle-orm'
 import type { AuctionEvent, AuctionEventRow, AuctionEventType } from '#shared/types'
 import { auctionEvents, players, users } from '../database/schema'
 import type { DbOrTx } from '../utils/db'
@@ -28,6 +28,29 @@ export async function findEventById(
     .select()
     .from(auctionEvents)
     .where(and(eq(auctionEvents.auctionId, auctionId), eq(auctionEvents.id, eventId)))
+    .limit(1)
+  return row ?? null
+}
+
+/** Evento attivo che ha portato il giocatore nello stato corrente. */
+export async function findLatestRevertableEvent(
+  db: DbOrTx,
+  auctionId: string,
+  playerId: string,
+  type: Extract<AuctionEventType, 'PLAYER_PURCHASED' | 'PLAYER_SOLD'>
+): Promise<AuctionEvent | null> {
+  const [row] = await db
+    .select()
+    .from(auctionEvents)
+    .where(
+      and(
+        eq(auctionEvents.auctionId, auctionId),
+        eq(auctionEvents.playerId, playerId),
+        eq(auctionEvents.type, type),
+        isNull(auctionEvents.revertedAt)
+      )
+    )
+    .orderBy(desc(auctionEvents.createdAt))
     .limit(1)
   return row ?? null
 }

@@ -1248,3 +1248,40 @@ resta quella manuale del 2026-08-21, da ripetere a ogni aggiornamento delle CLI.
 
 - In produzione la chiave va aggiunta come `NUXT_API_FOOTBALL_KEY` al Secret
   SOPS `fantabro-secrets`; non viene mai esposta al client.
+
+---
+
+## Feature 50 — Annullamento diretto di rosa e SOLD
+
+### Implementato
+
+- La rosa espone un'azione di annullamento per ogni calciatore acquistato.
+- Il listone espone la stessa azione per i giocatori in stato `MY_PLAYER` o `SOLD`.
+- `POST /api/auctions/:auctionId/players/revert` risolve l'evento attivo del
+  giocatore dentro la transazione e ripristina disponibilità, rosa, budget e slot.
+- L'annullamento dal registro rilegge l'evento dopo il lock del giocatore, così
+  due richieste concorrenti non possono annullare due volte lo stesso evento.
+
+### Modifiche database
+
+- Nessuna.
+
+### Test
+
+- `tests/unit/services/revert.spec.ts` copre l'annullamento diretto di un
+  acquisto e di un SOLD.
+- `tests/e2e/auction-flow.spec.ts` copre l'endpoint diretto per entrambi gli
+  stati quando PostgreSQL è disponibile.
+
+### Validazione
+
+- pnpm lint: PASS
+- pnpm typecheck: PASS
+- pnpm test: NON PASS (362 passati, 54 skipped; timeout del setup Nuxt in
+  `tests/component/analytics.spec.ts`, non correlato alla feature)
+- pnpm format:check: PASS
+- pnpm build: PASS
+
+### Note
+
+- `pnpm test:e2e`: 19 skipped perché `DATABASE_URL` non è impostata.

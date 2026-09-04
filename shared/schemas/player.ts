@@ -67,6 +67,8 @@ export const updateTargetSchema = z.object({
 
 export const revertEventSchema = z.object({ eventId: uuidSchema })
 
+export const revertPlayerSchema = z.object({ playerId: uuidSchema })
+
 export const comparePlayersSchema = z.object({
   playerIds: z.array(uuidSchema).min(2).max(6),
 })

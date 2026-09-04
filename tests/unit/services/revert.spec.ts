@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { makeAuction, makeEvent, makePlayerRow } from './fixtures'
+import { makeAuction, makeAuctionPlayer, makeEvent, makePlayerRow } from './fixtures'
 
 const m = vi.hoisted(() => ({
   tx: { transaction: true },
@@ -13,6 +13,7 @@ const m = vi.hoisted(() => ({
   removeRosterPlayer: vi.fn(),
   appendEvent: vi.fn(),
   findEventById: vi.fn(),
+  findLatestRevertableEvent: vi.fn(),
   markEventReverted: vi.fn(),
   publishAuctionChange: vi.fn(),
 }))
@@ -39,10 +40,11 @@ vi.mock('../../../server/repositories/roster', () => ({
 vi.mock('../../../server/repositories/events', () => ({
   appendEvent: m.appendEvent,
   findEventById: m.findEventById,
+  findLatestRevertableEvent: m.findLatestRevertableEvent,
   markEventReverted: m.markEventReverted,
 }))
 
-const { revertEvent } = await import('../../../server/services/revert')
+const { revertEvent, revertPlayer } = await import('../../../server/services/revert')
 
 const auction = makeAuction()
 const purchased = makeEvent('PLAYER_PURCHASED')
@@ -51,6 +53,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   m.lockAuction.mockResolvedValue(auction)
   m.findEventById.mockResolvedValue(purchased)
+  m.findLatestRevertableEvent.mockResolvedValue(purchased)
   m.lockAuctionPlayer.mockResolvedValue({})
   m.listPurchaseFacts.mockResolvedValue([])
   m.getRosterId.mockResolvedValue('roster-1')
@@ -94,6 +97,34 @@ describe('revertEvent', () => {
     )
 
     await revertEvent({ auction, eventId: purchased.id, userId: 'user-2' })
+
+    expect(m.removeRosterPlayer).not.toHaveBeenCalled()
+    expect(m.appendEvent).toHaveBeenCalledWith(
+      m.tx,
+      expect.objectContaining({ type: 'PLAYER_SOLD_REVERTED' })
+    )
+  })
+
+  it('annulla direttamente un giocatore in rosa risolvendo il suo evento attivo', async () => {
+    m.lockAuctionPlayer.mockResolvedValue(makeAuctionPlayer('MY_PLAYER'))
+
+    await revertPlayer({ auction, playerId: purchased.playerId!, userId: 'user-2' })
+
+    expect(m.findLatestRevertableEvent).toHaveBeenCalledWith(
+      m.tx,
+      auction.id,
+      purchased.playerId,
+      'PLAYER_PURCHASED'
+    )
+    expect(m.removeRosterPlayer).toHaveBeenCalledWith(m.tx, 'roster-1', purchased.playerId)
+  })
+
+  it('annulla direttamente un SOLD senza toccare la rosa', async () => {
+    const sold = makeEvent('PLAYER_SOLD')
+    m.lockAuctionPlayer.mockResolvedValue(makeAuctionPlayer('SOLD'))
+    m.findLatestRevertableEvent.mockResolvedValue(sold)
+
+    await revertPlayer({ auction, playerId: sold.playerId!, userId: 'user-2' })
 
     expect(m.removeRosterPlayer).not.toHaveBeenCalled()
     expect(m.appendEvent).toHaveBeenCalledWith(

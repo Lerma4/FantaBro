@@ -378,7 +378,7 @@ describe('flusso d asta end to end', async () => {
     expect(await availableNames()).not.toContain('Barella')
   })
 
-  step('10. registra gli eventi e annulla l acquisto riportando lo stato indietro', async () => {
+  step('10. annulla direttamente SOLD e acquisto riportando gli stati indietro', async () => {
     const { status, body } = await call(`/api/auctions/${auction.id}/events`)
     expect(status).toBe(200)
 
@@ -387,9 +387,15 @@ describe('flusso d asta end to end', async () => {
       expect.arrayContaining(['IMPORT_COMPLETED', 'PLAYER_PURCHASED', 'PLAYER_SOLD'])
     )
 
-    const purchase = events.find((event) => event.type === 'PLAYER_PURCHASED')!
-    const reverted = await call(`/api/auctions/${auction.id}/events/revert`, {
-      body: { eventId: purchase.id },
+    const sold = await call(`/api/auctions/${auction.id}/players/revert`, {
+      body: { playerId: id('Barella') },
+    })
+    expect(sold.status).toBe(200)
+    expect((sold.body.state as AuctionState).spent).toBe(40)
+    expect(await availableNames()).toContain('Barella')
+
+    const reverted = await call(`/api/auctions/${auction.id}/players/revert`, {
+      body: { playerId: id('Dimarco') },
     })
     expect(reverted.status).toBe(200)
 

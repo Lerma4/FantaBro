@@ -26,6 +26,7 @@ const soldOpen = ref(false)
 const removeOpen = ref(false)
 const targeting = ref(false)
 const removing = ref(false)
+const reverting = ref(false)
 
 const available = computed(() => props.row.status === 'AVAILABLE')
 
@@ -74,6 +75,22 @@ async function remove() {
     toastError(err)
   } finally {
     removing.value = false
+  }
+}
+
+async function revert() {
+  reverting.value = true
+  try {
+    const res = await apiFetch<{ state: AuctionState; row: PlayerRow }>(
+      `/api/auctions/${props.auctionId}/players/revert`,
+      { method: 'POST', body: { playerId: props.row.playerId } }
+    )
+    toastOk(t('events.revertDone'))
+    emit('applied', res)
+  } catch (err) {
+    toastError(err)
+  } finally {
+    reverting.value = false
   }
 }
 </script>
@@ -129,6 +146,17 @@ async function remove() {
     </div>
 
     <div role="cell" class="flex items-center justify-end gap-1">
+      <UButton
+        v-if="!available"
+        size="xs"
+        color="neutral"
+        variant="ghost"
+        icon="i-lucide-undo-2"
+        :loading="reverting"
+        :aria-label="`${t('events.revert')}: ${row.name}`"
+        @click="revert"
+      />
+
       <UPopover v-model:open="buyOpen" :content="{ align: 'end' }">
         <UButton
           size="xs"

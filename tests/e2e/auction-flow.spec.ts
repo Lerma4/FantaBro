@@ -257,7 +257,14 @@ describe('flusso d asta end to end', async () => {
     expect(auction.initialBudget).toBe(100)
   })
 
-  step('3a. aggiunge all asta un utente gia creato dalla lista', async () => {
+  step('3a. renderizza le aste gia esistenti nella prima risposta autenticata', async () => {
+    const response = await fetch('/', { headers: { cookie } })
+
+    expect(response.status).toBe(200)
+    expect(await response.text()).toContain(auction.name)
+  })
+
+  step('3b. aggiunge all asta un utente gia creato dalla lista', async () => {
     const created = await call('/api/users', {
       body: {
         name: 'Membro E2E',

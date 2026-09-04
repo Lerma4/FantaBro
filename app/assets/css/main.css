@@ -219,6 +219,41 @@
     grid-template-columns: 1.6rem minmax(0, 1fr) 1.5rem 3.25rem 8.5rem;
   }
 
+  @media (max-width: 39.999rem) {
+    /* Su mobile i filtri sono una fascia leggibile, non una fila compressa. */
+    .barra-filtri-listone {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: center;
+    }
+
+    .barra-filtri-listone > #listone-search,
+    .barra-filtri-listone > .status-filter-listone {
+      grid-column: 1 / -1;
+    }
+
+    .barra-filtri-listone > .status-filter-listone {
+      max-width: 100%;
+      overflow-x: auto;
+      padding-bottom: 2px;
+    }
+
+    .barra-filtri-listone > .status-filter-listone > * {
+      flex: 0 0 auto;
+    }
+
+    .barra-filtri-listone > .filtro-avanzato-listone,
+    .barra-filtri-listone > .sort-filter-listone,
+    .barra-filtri-listone > .azioni-listone {
+      grid-column: 1 / -1;
+    }
+
+    .barra-filtri-listone > .azioni-listone {
+      margin-left: 0;
+      justify-content: flex-end;
+    }
+  }
+
   @media (min-width: 40rem) {
     .griglia-listone {
       grid-template-columns:

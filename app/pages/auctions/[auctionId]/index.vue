@@ -176,7 +176,7 @@ const emptyListone = computed(
   <div class="flex h-full flex-col">
     <!-- riga di comando: cercare viene prima di tutto (spec 49) -->
     <div
-      class="flex shrink-0 flex-wrap items-center gap-2 border-b px-2 py-2 sm:px-3"
+      class="barra-filtri-listone flex shrink-0 flex-wrap items-center gap-2 border-b px-2 py-2 sm:px-3"
       :style="{ borderColor: 'var(--fb-filo)' }"
     >
       <UInput
@@ -193,7 +193,7 @@ const emptyListone = computed(
         </template>
       </UInput>
 
-      <UFieldGroup :aria-label="t('columns.status')">
+      <UFieldGroup class="status-filter-listone" :aria-label="t('columns.status')">
         <UButton
           v-for="status in statuses"
           :key="status"
@@ -209,18 +209,19 @@ const emptyListone = computed(
 
       <PlayerFilters
         v-model="filters"
+        class="filtro-avanzato-listone"
         :teams="teams"
         :tiers="tierOptions"
         :active-count="activeFilterCount"
         @reset="resetFilters"
       />
 
-      <div class="flex items-center gap-1">
+      <div class="sort-filter-listone flex w-full items-center gap-1">
         <USelect
           v-model="filters.sort"
           :items="sortItems"
           :aria-label="t('common.sort')"
-          class="w-40"
+          class="min-w-0 flex-1 sm:w-40 sm:flex-none"
         />
         <UButton
           color="neutral"
@@ -236,7 +237,7 @@ const emptyListone = computed(
         />
       </div>
 
-      <div class="ml-auto flex items-center gap-1">
+      <div class="azioni-listone ml-auto flex items-center gap-1">
         <AuctionEventLog :auction-id="auctionId" :version="operations" @reverted="onReverted" />
         <AiPanel :auction-id="auctionId" />
       </div>
@@ -283,7 +284,7 @@ const emptyListone = computed(
           role="row"
           aria-rowindex="1"
         >
-          <span role="columnheader" class="sr-only">{{ t('players.select') }}</span>
+          <span role="columnheader" class="etichetta opacity-0">{{ t('players.select') }}</span>
           <span role="columnheader" class="etichetta">{{ t('columns.name') }}</span>
           <span role="columnheader" class="etichetta text-center">{{ t('columns.role') }}</span>
           <span role="columnheader" class="etichetta hidden sm:block">

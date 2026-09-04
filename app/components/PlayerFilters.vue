@@ -24,7 +24,7 @@ function toggleRole(role: (typeof CLASSIC_ROLES)[number]) {
     </UButton>
 
     <template #content>
-      <div class="w-80 space-y-4 p-4">
+      <div class="w-[calc(100vw-1rem)] max-w-80 space-y-4 p-4">
         <fieldset>
           <legend class="etichetta">{{ t('filters.role') }}</legend>
           <UFieldGroup class="mt-1.5">

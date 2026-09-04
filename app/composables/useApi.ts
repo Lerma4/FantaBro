@@ -52,10 +52,10 @@ export function toApiError(err: unknown): ApiError {
   return new ApiError(byStatus[status] ?? 'INTERNAL_ERROR', status)
 }
 
-/** `$fetch` che fallisce sempre con un `ApiError`. */
+/** Fetch che inoltra cookie e header della richiesta SSR e fallisce con un `ApiError`. */
 export async function apiFetch<T>(url: string, opts?: ApiFetchOptions) {
   try {
-    return await $fetch<T, string>(url, opts)
+    return await useRequestFetch()<T>(url, opts)
   } catch (err) {
     throw toApiError(err)
   }

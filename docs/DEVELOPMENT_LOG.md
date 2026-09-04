@@ -98,8 +98,6 @@ Formato:
 - pnpm test: PASS su `tests/unit/ai` (112/112)
 - pnpm build: PASS
 
----
-
 ## Feature 39 — PostgreSQL locale su porta non confliggente
 
 ### Implementato
@@ -1128,3 +1126,63 @@ resta quella manuale del 2026-08-21, da ripetere a ogni aggiornamento delle CLI.
 - pnpm test: PASS (361 passati, 51 skipped)
 - pnpm format:check: PASS
 - pnpm build: PASS
+
+---
+
+## Feature 45 — Caricamento aste con sessione persistente
+
+### Implementato
+
+- `apiFetch` inoltra ora cookie e header della richiesta SSR tramite
+  `useRequestFetch`, cosi la pagina iniziale riceve le aste dell'utente gia
+  autenticato alla prima apertura.
+
+### Modifiche database
+
+- Nessuna.
+
+### Test
+
+- `tests/e2e/auction-flow.spec.ts` verifica che l'HTML della prima richiesta a
+  `/` con cookie di sessione includa un'asta esistente; si auto-salta senza
+  `DATABASE_URL`.
+
+### Validazione
+
+- pnpm lint: PASS
+- pnpm typecheck: PASS
+- pnpm test: PASS (361 passati, 52 skipped)
+- pnpm format:check: NON PASS — `app/pages/auctions/[auctionId]/index.vue` e
+  modificato esternamente durante la verifica e non e formattato; non riguarda
+  questa feature.
+- pnpm build: PASS
+
+---
+
+## Feature 46 — Layout responsive del listone
+
+### Implementato
+
+- La barra di ricerca, gli stati, i filtri avanzati e l'ordinamento si dispongono
+  su righe leggibili su mobile; gli stati possono scorrere orizzontalmente senza
+  comprimere i pulsanti.
+- Il popover dei filtri avanzati rispetta la larghezza del viewport mobile.
+- La cella di selezione dell'intestazione resta nel CSS Grid: le intestazioni
+  desktop sono ora allineate alle colonne delle righe.
+
+### Modifiche database
+
+- Nessuna.
+
+### Test
+
+- Nessun nuovo test: modifica esclusivamente layout e CSS.
+
+### Validazione
+
+- pnpm lint: PASS
+- pnpm typecheck: PASS
+- pnpm test: NON PASS (359 passati, 54 skipped; `tests/component/analytics.spec.ts`
+  fallisce per timeout del setup Nuxt a 10s)
+- pnpm format:check: PASS sui file modificati
+- pnpm build: NON RICHIESTO

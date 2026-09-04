@@ -127,6 +127,7 @@
     "actions": "Azioni",
     "appearances": "Pres.",
     "assists": "Assist",
+    "minutes": "Minuti",
     "fantasyAverage": "Fm",
     "fvm": "FVM",
     "averageRating": "Mv",
@@ -308,6 +309,9 @@
   "detail": {
     "askAi": "Chiedi all'AI",
     "compare": "Confronta",
+    "currentAppearances": "Presenze / squadra",
+    "currentSeason": "Stagione corrente",
+    "currentSeasonUnavailable": "Statistiche aggiornate non disponibili.",
     "personal": "I tuoi dati",
     "previousSeason": "Stagione {season}",
     "previousSeasonNone": "Nessuna statistica importata per questo giocatore",

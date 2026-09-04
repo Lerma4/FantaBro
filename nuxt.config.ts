@@ -12,6 +12,7 @@ export default defineNuxtConfig({
     databaseUrl: '',
     betterAuthSecret: '',
     betterAuthUrl: 'http://localhost:3000',
+    apiFootballKey: '',
     ai: {
       defaultProvider: 'claude-code',
       timeoutMs: 120_000,

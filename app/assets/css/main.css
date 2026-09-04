@@ -175,14 +175,13 @@
   /* riga del listone: rigata come la carta, non a schede */
   .riga-listone {
     border-bottom: 1px solid var(--fb-carta-riga);
+    transition:
+      background-color 120ms ease,
+      box-shadow 120ms ease;
   }
 
   .riga-listone:nth-child(even) {
     background-color: color-mix(in oklab, var(--fb-carta-alt) 60%, transparent);
-  }
-
-  .riga-listone:hover {
-    background-color: color-mix(in oklab, var(--color-verde-500) 7%, transparent);
   }
 
   /* pip di occupazione slot: 3 quadretti pieni su 3 si legge senza numeri */
@@ -272,5 +271,11 @@
 
   .riga-listone.riga-alt {
     background-color: color-mix(in oklab, var(--fb-carta-alt) 60%, transparent);
+  }
+
+  .riga-listone:hover,
+  .riga-listone.riga-alt:hover {
+    background-color: color-mix(in oklab, var(--color-verde-500) 16%, var(--fb-carta));
+    box-shadow: inset 4px 0 0 var(--color-verde-500);
   }
 }

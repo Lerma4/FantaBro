@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { AuctionState, PlayerRow, PlayerSeasonStats } from '#shared/types'
+import type { AuctionState, PlayerCurrentStats, PlayerRow, PlayerSeasonStats } from '#shared/types'
 
 const { t } = useI18n()
 const { n, d } = useFormat()
@@ -11,6 +11,7 @@ const playerId = String(route.params.playerId)
 
 const row = ref<PlayerRow | null>(null)
 const stats = ref<PlayerSeasonStats[]>([])
+const currentStats = ref<PlayerCurrentStats | null>(null)
 const loaded = ref(false)
 const buyOpen = ref(false)
 const soldOpen = ref(false)
@@ -19,11 +20,14 @@ useHead({ title: computed(() => row.value?.name ?? t('detail.title')) })
 
 onMounted(async () => {
   try {
-    const res = await apiFetch<{ row: PlayerRow; stats: PlayerSeasonStats[] }>(
-      `/api/auctions/${auctionId}/players/${playerId}`
-    )
+    const res = await apiFetch<{
+      row: PlayerRow
+      stats: PlayerSeasonStats[]
+      currentStats: PlayerCurrentStats | null
+    }>(`/api/auctions/${auctionId}/players/${playerId}`)
     row.value = res.row
     stats.value = res.stats
+    currentStats.value = res.currentStats
   } catch (err) {
     toastError(err)
   } finally {
@@ -142,6 +146,48 @@ function onApplied(payload: { state: AuctionState; row: PlayerRow }) {
 
         <AiPanel :auction-id="auctionId" :player-id="row.playerId" :label="t('detail.askAi')" />
       </div>
+
+      <section class="mt-10">
+        <h2 class="text-xl leading-none" style="font-family: var(--font-display)">
+          {{ t('detail.currentSeason') }}
+        </h2>
+
+        <dl
+          v-if="currentStats"
+          class="mt-3 grid grid-cols-2 gap-x-6 gap-y-4 border-t pt-3 sm:grid-cols-5"
+          :style="{ borderColor: 'var(--fb-filo-forte)' }"
+        >
+          <div>
+            <dt class="etichetta">{{ t('detail.currentAppearances') }}</dt>
+            <dd class="tabellare text-xl leading-none">
+              {{ n(currentStats.appearances) }} / {{ n(currentStats.teamAppearances) }}
+            </dd>
+          </div>
+          <div>
+            <dt class="etichetta">{{ t('columns.minutes') }}</dt>
+            <dd class="tabellare text-xl leading-none">{{ n(currentStats.minutes) }}</dd>
+          </div>
+          <div>
+            <dt class="etichetta">{{ t('columns.averageRating') }}</dt>
+            <dd class="tabellare text-xl leading-none">{{ d(currentStats.averageRating) }}</dd>
+          </div>
+          <div>
+            <dt class="etichetta">{{ t('columns.goals') }}</dt>
+            <dd class="tabellare text-xl leading-none">{{ n(currentStats.goals) }}</dd>
+          </div>
+          <div>
+            <dt class="etichetta">{{ t('columns.assists') }}</dt>
+            <dd class="tabellare text-xl leading-none">{{ n(currentStats.assists) }}</dd>
+          </div>
+        </dl>
+        <p
+          v-else
+          class="mt-3 border-t pt-3 text-sm opacity-70"
+          :style="{ borderColor: 'var(--fb-filo-forte)' }"
+        >
+          {{ t('detail.currentSeasonUnavailable') }}
+        </p>
+      </section>
 
       <section class="mt-10">
         <h2 class="text-xl leading-none" style="font-family: var(--font-display)">

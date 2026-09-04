@@ -1,5 +1,3 @@
-/**
- * Provider di statistiche stagionali (spec 14). Solo Excel: nessun endpoint di terze
- * parti non documentato, l'import manuale resta la strada garantita.
- */
+/** Provider di statistiche stagionali: Excel storico e API-Football documentata per il live. */
 export { excelStatsProvider, parseStatsWorkbook, type ExcelStatsInput } from './excel'
+export { getCurrentSeasonStats } from './api-football'

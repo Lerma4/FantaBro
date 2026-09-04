@@ -1186,3 +1186,65 @@ resta quella manuale del 2026-08-21, da ripetere a ogni aggiornamento delle CLI.
   fallisce per timeout del setup Nuxt a 10s)
 - pnpm format:check: PASS sui file modificati
 - pnpm build: NON RICHIESTO
+
+---
+
+## Feature 47 — Evidenziazione hover delle righe
+
+### Implementato
+
+- Le righe del listone hanno ora un'evidenziazione hover ad alto contrasto,
+  con fondo verde e bordo laterale.
+- L'effetto si applica anche alle righe alternate della lista virtualizzata.
+
+### Modifiche database
+
+- Nessuna.
+
+### Test
+
+- Nessun nuovo test: modifica esclusivamente CSS.
+
+### Validazione
+
+- pnpm lint: PASS
+- pnpm typecheck: PASS
+- pnpm test: NON PASS (359 passati, 54 skipped; timeout del setup Nuxt in
+  `tests/component/analytics.spec.ts`, non correlato a questa modifica)
+- pnpm format:check: PASS
+- pnpm build: NON RICHIESTO
+
+---
+
+## Feature 48 — Statistiche aggiornate del calciatore
+
+### Implementato
+
+- Il dettaglio giocatore mostra la stagione in corso: presenze sul totale della
+  squadra, minuti, media voto, gol e assist.
+- Il provider server-side usa gli endpoint documentati di API-Football per la
+  Serie A e memorizza le risposte per un'ora nel processo.
+- Senza `NUXT_API_FOOTBALL_KEY` o quando il servizio esterno non risponde, il
+  dettaglio storico resta disponibile e viene mostrato lo stato non disponibile.
+
+### Modifiche database
+
+- Nessuna.
+
+### Test
+
+- `tests/unit/providers/api-football-provider.spec.ts` verifica la selezione
+  della squadra dalle statistiche restituite dal provider.
+
+### Validazione
+
+- pnpm lint: PASS
+- pnpm typecheck: PASS
+- pnpm test: PASS (362 passati, 52 skipped)
+- pnpm format:check: PASS
+- pnpm build: PASS
+
+### Note
+
+- In produzione la chiave va aggiunta come `NUXT_API_FOOTBALL_KEY` al Secret
+  SOPS `fantabro-secrets`; non viene mai esposta al client.

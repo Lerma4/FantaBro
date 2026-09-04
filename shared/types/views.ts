@@ -34,6 +34,19 @@ export interface PlayerRow {
   notes: string | null
 }
 
+/** Statistiche della stagione d'asta, richieste al provider al momento dell'apertura. */
+export interface PlayerCurrentStats {
+  season: string
+  appearances: number
+  teamAppearances: number
+  minutes: number
+  averageRating: number | null
+  goals: number
+  assists: number
+  provider: 'api-football'
+  updatedAt: string
+}
+
 export interface RoleSlotState {
   role: ClassicRole
   total: number

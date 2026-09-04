@@ -434,6 +434,7 @@ Elenco completo con commenti in [`.env.example`](.env.example).
 | `NUXT_DATABASE_URL`        | —                       | Stessa connessione, letta dall'applicazione                               |
 | `NUXT_BETTER_AUTH_SECRET`  | —                       | Segreto di firma delle sessioni (obbligatorio)                            |
 | `NUXT_BETTER_AUTH_URL`     | `http://localhost:3000` | URL pubblica dell'app                                                     |
+| `NUXT_API_FOOTBALL_KEY`    | —                       | Chiave privata API-Football per le statistiche live della Serie A         |
 | `SEED_ADMIN_EMAIL`         | —                       | Email del primo ADMIN creato da `pnpm db:seed`                            |
 | `SEED_ADMIN_PASSWORD`      | —                       | Password del primo ADMIN                                                  |
 | `SEED_ADMIN_NAME`          | `Admin`                 | Nome del primo ADMIN                                                      |

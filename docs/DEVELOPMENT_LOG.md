@@ -1357,3 +1357,41 @@ resta quella manuale del 2026-08-21, da ripetere a ogni aggiornamento delle CLI.
 - Prova live riuscita con Malen, Orsolini, De Ketelaere e Calhanoglu.
 - Il confronto usa prima il nome esatto e poi un match parziale solo se il candidato nella
   squadra è unico; la squadra resta sempre obbligatoria per evitare omonimie.
+- Versione applicazione: `1.0.1`.
+
+---
+
+## Feature 52 — Sincronizzazione esplicita statistiche correnti
+
+### Implementato
+
+- La pagina dettaglio non interroga più provider esterni all’apertura: mostra soltanto eventuali
+  dati Fantacalcio già presenti nella cache di processo.
+- Aggiunto il pulsante `Sincronizza`, che aggiorna le statistiche dal sito Fantacalcio.it e le
+  conserva per un’ora.
+- Aggiunto endpoint autenticato `POST /api/auctions/:auctionId/players/:playerId/stats/sync`.
+- Il parser ricava presenze, presenze della squadra, minuti, media voto, gol e assist dal markup
+  server-rendered; il provider API-Football resta disponibile ma non viene usato automaticamente.
+
+### Modifiche database
+
+- Nessuna.
+
+### Test
+
+- Prova live con Malen e Orsolini: sincronizzazione riuscita e seconda lettura dalla cache.
+- Test unitari del resolver Fantacalcio: 332 passati nel progetto unit.
+
+### Validazione
+
+- pnpm lint: PASS
+- pnpm typecheck: PASS
+- pnpm test --project unit: PASS (332 test)
+- pnpm test: NON PASS (3 suite component hanno superato il timeout Nuxt di 10 secondi; 346 test
+  passati e 72 skipped)
+- pnpm format:check: PASS
+- pnpm build: PASS
+
+### Note
+
+- La cache è in memoria del processo; con più repliche servirà una cache condivisa.

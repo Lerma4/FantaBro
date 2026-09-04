@@ -1,3 +1,5 @@
+import type { PlayerCurrentStats } from '#shared/types'
+
 const INDEX_URL = 'https://www.fantacalcio.it/statistiche-serie-a'
 const CACHE_TTL_MS = 60 * 60 * 1000
 
@@ -13,7 +15,13 @@ interface CachedIndex {
   links: FantacalcioPlayerLink[]
 }
 
+interface CachedStats {
+  expiresAt: number
+  value: PlayerCurrentStats | null
+}
+
 let cachedIndex: CachedIndex | undefined
+const statsCache = new Map<string, CachedStats>()
 
 function normalize(value: string) {
   return value
@@ -36,6 +44,50 @@ function decodeHtml(value: string) {
     .replace(/&quot;/g, '"')
     .replace(/&nbsp;/g, ' ')
     .trim()
+}
+
+function readStat(html: string, label: string) {
+  const escapedLabel = label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const match = html.match(
+    new RegExp(
+      `<th[^>]*itemprop=["']name description["'][^>]*>\\s*${escapedLabel}\\s*<\\/th>[\\s\\S]*?<td[^>]*class=["'][^"']*value[^"']*["'][^>]*>([0-9]+(?:[,.][0-9]+)?)`,
+      'i'
+    )
+  )
+  if (!match?.[1]) return null
+  const value = Number(match[1].replace(',', '.'))
+  return Number.isFinite(value) ? value : null
+}
+
+function readAverageRating(html: string) {
+  const match = html.match(
+    /<meta[^>]*itemprop=["']name description["'][^>]*content=["']Media voto["'][\s\S]*?<meta[^>]*itemprop=["']value["'][^>]*content=["']([^"']+)/i
+  )
+  if (!match?.[1]) return null
+  const value = Number(match[1].replace(',', '.'))
+  return Number.isFinite(value) ? value : null
+}
+
+function readMatchStats(html: string) {
+  const rows = [...html.matchAll(/<tr>([\s\S]*?)<\/tr>/gi)].flatMap((match) =>
+    match[1] ? [match[1]] : []
+  )
+  const matches = rows.filter((row) => /class=["'][^"']*match\b/i.test(row))
+  let appearances = 0
+  let minutes = 0
+
+  for (const row of matches) {
+    const grade = row.match(/class=["']grade["'][^>]*data-value=["']([^"']*)/i)?.[1]
+    if (!grade) continue
+    appearances += 1
+    const entered =
+      Number(row.match(/class=["']sub-in["'][^>]*data-minute=["']([^"']*)/i)?.[1]) || 0
+    const exited =
+      Number(row.match(/class=["']sub-out["'][^>]*data-minute=["']([^"']*)/i)?.[1]) || 90
+    minutes += Math.max(0, exited - entered)
+  }
+
+  return { teamAppearances: matches.length, appearances, minutes }
 }
 
 export function extractFantacalcioPlayerLinks(html: string): FantacalcioPlayerLink[] {
@@ -92,4 +144,59 @@ export async function resolveFantacalcioPlayerUrl(name: string, team: string) {
   const links = await loadIndex()
   const player = findFantacalcioPlayerLink(links, name, team)
   return player?.url ?? null
+}
+
+function cacheKey(input: { season: string; team: string; name: string }) {
+  return `${input.season}:${normalize(input.team)}:${normalize(input.name)}`
+}
+
+export function getCachedFantacalcioStats(input: { season: string; team: string; name: string }) {
+  const cached = statsCache.get(cacheKey(input))
+  return cached && cached.expiresAt > Date.now() ? cached.value : null
+}
+
+export async function syncFantacalcioStats(input: {
+  season: string
+  team: string
+  name: string
+}): Promise<PlayerCurrentStats | null> {
+  const link = findFantacalcioPlayerLink(await loadIndex(), input.name, input.team)
+  if (!link) {
+    statsCache.set(cacheKey(input), { value: null, expiresAt: Date.now() + CACHE_TTL_MS })
+    return null
+  }
+
+  try {
+    const response = await fetch(link.url, { signal: AbortSignal.timeout(5_000) })
+    if (!response.ok) return null
+    const html = await response.text()
+    const matchStats = readMatchStats(html)
+    const appearances = readStat(html, 'Partite a voto')
+    const goals = readStat(html, 'Gol')
+    const assists = readStat(html, 'Assist')
+    if (
+      appearances === null ||
+      goals === null ||
+      assists === null ||
+      matchStats.teamAppearances === 0
+    ) {
+      return null
+    }
+
+    const value: PlayerCurrentStats = {
+      season: input.season,
+      appearances,
+      teamAppearances: matchStats.teamAppearances,
+      minutes: matchStats.minutes,
+      averageRating: readAverageRating(html),
+      goals,
+      assists,
+      provider: 'fantacalcio',
+      updatedAt: new Date().toISOString(),
+    }
+    statsCache.set(cacheKey(input), { value, expiresAt: Date.now() + CACHE_TTL_MS })
+    return value
+  } catch {
+    return null
+  }
 }

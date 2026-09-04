@@ -1,6 +1,6 @@
 import { listStatsForPlayer } from '../../../../repositories/stats'
 import { loadPlayerRow } from '../../../../services/playerRows'
-import { getCurrentSeasonStats } from '../../../../providers/statistics'
+import { getCachedFantacalcioStats } from '../../../../providers/statistics'
 import { db } from '../../../../utils/db'
 import { defineApiHandler } from '../../../../utils/errors'
 import { requireAuctionAccess } from '../../../../utils/guards'
@@ -10,15 +10,10 @@ export default defineApiHandler(async (event) => {
   const auctionId = getUuidParam(event, 'auctionId')
   const playerId = getUuidParam(event, 'playerId')
   const { auction } = await requireAuctionAccess(event, auctionId, 'VIEWER')
-  const { apiFootballKey } = useRuntimeConfig()
-
   const row = await loadPlayerRow(db, auction, playerId)
   const [stats, currentStats] = await Promise.all([
     listStatsForPlayer(db, playerId),
-    getCurrentSeasonStats(
-      { name: row.name, team: row.team, season: auction.season },
-      apiFootballKey
-    ),
+    getCachedFantacalcioStats({ name: row.name, team: row.team, season: auction.season }),
   ])
 
   return { row, stats, currentStats }

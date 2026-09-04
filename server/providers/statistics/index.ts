@@ -4,6 +4,8 @@ export { getCurrentSeasonStats } from './api-football'
 export {
   extractFantacalcioPlayerLinks,
   findFantacalcioPlayerLink,
+  getCachedFantacalcioStats,
   resolveFantacalcioPlayerUrl,
+  syncFantacalcioStats,
   type FantacalcioPlayerLink,
 } from './fantacalcio'

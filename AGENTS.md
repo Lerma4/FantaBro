@@ -72,6 +72,8 @@ docs/           SPEC.md, DEVELOPMENT_LOG.md, ADR
 9. Migrazioni **solo** con Drizzle Kit (`pnpm db:generate`); i file generati vanno committati insieme
    alla feature che ha cambiato lo schema.
 10. Nessun requisito di `docs/SPEC.md` va ignorato in silenzio.
+11. Prima di ogni `git push` incrementa la versione in `package.json` e registra il bump nel
+    `docs/DEVELOPMENT_LOG.md`.
 
 ## Quality gate obbligatorio dopo OGNI feature
 

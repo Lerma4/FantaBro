@@ -6,6 +6,7 @@ const { n, d } = useFormat()
 const route = useRoute()
 const { auctionId, store } = useAuctionPage()
 const toastError = useToastError()
+const toastOk = useToastOk()
 
 const playerId = String(route.params.playerId)
 
@@ -15,6 +16,7 @@ const currentStats = ref<PlayerCurrentStats | null>(null)
 const loaded = ref(false)
 const buyOpen = ref(false)
 const soldOpen = ref(false)
+const syncing = ref(false)
 
 useHead({ title: computed(() => row.value?.name ?? t('detail.title')) })
 
@@ -34,6 +36,22 @@ onMounted(async () => {
     loaded.value = true
   }
 })
+
+async function syncCurrentStats() {
+  syncing.value = true
+  try {
+    const res = await apiFetch<{ currentStats: PlayerCurrentStats | null }>(
+      `/api/auctions/${auctionId}/players/${playerId}/stats/sync`,
+      { method: 'POST' }
+    )
+    currentStats.value = res.currentStats
+    if (res.currentStats) toastOk(t('detail.syncDone'))
+  } catch (err) {
+    toastError(err)
+  } finally {
+    syncing.value = false
+  }
+}
 
 /** La stagione mostrata e quella dichiarata dalla riga: mai mescolate (spec 12). */
 const season = computed(() => {
@@ -148,9 +166,21 @@ function onApplied(payload: { state: AuctionState; row: PlayerRow }) {
       </div>
 
       <section class="mt-10">
-        <h2 class="text-xl leading-none" style="font-family: var(--font-display)">
-          {{ t('detail.currentSeason') }}
-        </h2>
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <h2 class="text-xl leading-none" style="font-family: var(--font-display)">
+            {{ t('detail.currentSeason') }}
+          </h2>
+          <UButton
+            size="sm"
+            color="neutral"
+            variant="outline"
+            icon="i-lucide-refresh-cw"
+            :loading="syncing"
+            @click="syncCurrentStats"
+          >
+            {{ t('detail.sync') }}
+          </UButton>
+        </div>
 
         <dl
           v-if="currentStats"

@@ -1251,6 +1251,31 @@ resta quella manuale del 2026-08-21, da ripetere a ogni aggiornamento delle CLI.
 
 ---
 
+## Bugfix 49 — Chiave API-Football in Docker Compose
+
+### Implementato
+
+- Docker Compose inoltra `NUXT_API_FOOTBALL_KEY` al container dell'app, come
+  già previsto da `runtimeConfig`.
+
+### Modifiche database
+
+- Nessuna.
+
+### Test
+
+- `docker compose config` verifica l'inoltro della variabile nel servizio `app`.
+
+### Validazione
+
+- pnpm lint: PASS
+- pnpm typecheck: PASS
+- pnpm test: PASS (362 passati, 52 skipped)
+- pnpm format:check: PASS
+- pnpm build: PASS
+
+---
+
 ## Feature 50 — Annullamento diretto di rosa e SOLD
 
 ### Implementato
@@ -1285,3 +1310,50 @@ resta quella manuale del 2026-08-21, da ripetere a ogni aggiornamento delle CLI.
 ### Note
 
 - `pnpm test:e2e`: 19 skipped perché `DATABASE_URL` non è impostata.
+
+---
+
+## Release 1.0.0 — Azioni target e identità di versione
+
+### Implementato
+
+- I giocatori acquistati o segnati come `SOLD` possono essere annullati anche
+  dalla pagina dei target.
+- La versione pubblica dell'app è stata portata a `1.0.0`.
+- Il link al repository nel footer mostra solo l’icona Git, mantenendo un
+  nome accessibile per i lettori di schermo.
+
+---
+
+## Feature 51 — Risoluzione deterministica link Fantacalcio
+
+### Implementato
+
+- Aggiunto un resolver server-side che legge l’indice statistiche di Fantacalcio.it,
+  confronta nome e squadra normalizzati e riutilizza l’URL completo pubblicato dal sito.
+- L’ID interno non viene calcolato; viene estratto dal link e il risultato è memorizzato in
+  cache per un’ora.
+
+### Modifiche database
+
+- Nessuna.
+
+### Test
+
+- Aggiunto test unitario per estrazione URL e ID di Malen e Orsolini.
+- Verificati anche nomi composti, accenti, apostrofi e nomi squadra equivalenti.
+
+### Validazione
+
+- pnpm lint: PASS
+- pnpm typecheck: PASS
+- pnpm test: PASS (366 test, 52 skipped)
+- pnpm format:check: PASS
+- pnpm build: PASS
+
+### Note
+
+- Il parser usa solo markup server-rendered e non richiede IA o nuove dipendenze.
+- Prova live riuscita con Malen, Orsolini, De Ketelaere e Calhanoglu.
+- Il confronto usa prima il nome esatto e poi un match parziale solo se il candidato nella
+  squadra è unico; la squadra resta sempre obbligatoria per evitare omonimie.

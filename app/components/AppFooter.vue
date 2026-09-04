@@ -12,9 +12,9 @@ const { public: config } = useRuntimeConfig()
       target="_blank"
       rel="noopener noreferrer"
       class="inline-flex items-center gap-1 hover:opacity-100 focus-visible:opacity-100"
+      :aria-label="t('app.repository')"
     >
       <UIcon name="i-lucide-git-branch" class="size-3.5" aria-hidden="true" />
-      {{ t('app.repository') }}
     </a>
   </footer>
 </template>

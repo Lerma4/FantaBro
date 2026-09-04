@@ -1,15 +1,17 @@
 <script setup lang="ts">
-import type { PlayerRow } from '#shared/types'
+import type { AuctionState, PlayerRow } from '#shared/types'
 
 const { t } = useI18n()
 const { n } = useFormat()
-const { auctionId } = useAuctionPage()
+const { auctionId, store } = useAuctionPage()
 const toastError = useToastError()
+const toastOk = useToastOk()
 
 useHead({ title: computed(() => t('targets.title')) })
 
 const rows = ref<PlayerRow[]>([])
 const loaded = ref(false)
+const reverting = ref<string | null>(null)
 
 async function load() {
   try {
@@ -29,6 +31,23 @@ function onUpdated(updated: PlayerRow) {
   rows.value = updated.isTarget
     ? rows.value.map((row) => (row.playerId === updated.playerId ? updated : row))
     : rows.value.filter((row) => row.playerId !== updated.playerId)
+}
+
+async function revert(row: PlayerRow) {
+  reverting.value = row.playerId
+  try {
+    const res = await apiFetch<{ state: AuctionState; row: PlayerRow }>(
+      `/api/auctions/${auctionId}/players/revert`,
+      { method: 'POST', body: { playerId: row.playerId } }
+    )
+    store.applyServerState(res.state)
+    onUpdated(res.row)
+    toastOk(t('events.revertDone'))
+  } catch (err) {
+    toastError(err)
+  } finally {
+    reverting.value = null
+  }
 }
 
 onMounted(load)
@@ -76,6 +95,17 @@ onMounted(load)
             :row="row"
             :auction-id="auctionId"
             @updated="onUpdated"
+          />
+          <UButton
+            v-if="row.status !== 'AVAILABLE'"
+            class="mt-2"
+            size="xs"
+            color="neutral"
+            variant="ghost"
+            icon="i-lucide-undo-2"
+            :loading="reverting === row.playerId"
+            :aria-label="`${t('events.revert')}: ${row.name}`"
+            @click="revert(row)"
           />
         </li>
       </ul>

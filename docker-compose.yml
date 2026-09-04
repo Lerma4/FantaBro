@@ -77,6 +77,7 @@ services:
       DATABASE_URL: postgres://${POSTGRES_USER:-fantabro}:${POSTGRES_PASSWORD:-fantabro}@postgres:5432/${POSTGRES_DB:-fantabro}
       NUXT_BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?BETTER_AUTH_SECRET è obbligatorio}
       NUXT_BETTER_AUTH_URL: ${BETTER_AUTH_URL:-http://localhost:3000}
+      NUXT_API_FOOTBALL_KEY: ${NUXT_API_FOOTBALL_KEY:-}
       # In questa immagine `claude` e `opencode` NON sono installati (vedi
       # Dockerfile): l'unico provider disponibile è Codex tramite il worker.
       # Per abilitare gli altri due serve un'immagine derivata con le CLI.

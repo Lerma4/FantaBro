@@ -257,6 +257,29 @@ describe('flusso d asta end to end', async () => {
     expect(auction.initialBudget).toBe(100)
   })
 
+  step('3a. aggiunge all asta un utente gia creato dalla lista', async () => {
+    const created = await call('/api/users', {
+      body: {
+        name: 'Membro E2E',
+        email: `member-${Date.now()}@fantabro.test`,
+        password: 'password-lunga-123',
+        role: 'MEMBER',
+      },
+    })
+    expect(created.status).toBe(200)
+
+    const user = created.body as { id: string; name: string; email: string }
+    const candidates = await call(`/api/auctions/${auction.id}/members`)
+    expect(candidates.status).toBe(200)
+    expect(candidates.body).toContainEqual({ id: user.id, name: user.name, email: user.email })
+
+    const added = await call(`/api/auctions/${auction.id}/members`, {
+      body: { userId: user.id, role: 'EDITOR' },
+    })
+    expect(added.status).toBe(200)
+    expect(added.body).toMatchObject({ auctionId: auction.id, userId: user.id, role: 'EDITOR' })
+  })
+
   step('4. importa il listone da un XLSX vero, con preview e conferma', async () => {
     const preview = await uploadListone(`/api/auctions/${auction.id}/import/preview`, {
       season: SEASON,

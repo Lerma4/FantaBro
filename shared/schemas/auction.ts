@@ -29,7 +29,7 @@ export const updateAuctionSchema = createAuctionSchema
   .refine((v) => Object.keys(v).length > 0, { message: 'empty update' })
 
 export const addMemberSchema = z.object({
-  email: z.string().trim().toLowerCase().email(),
+  userId: z.string().trim().min(1).max(128),
   role: memberRoleSchema.default('EDITOR'),
 })
 

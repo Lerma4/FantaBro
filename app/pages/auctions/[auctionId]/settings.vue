@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ASSIGNABLE_MEMBER_ROLES } from '#shared/constants'
 import { addMemberSchema, updateAuctionSchema } from '#shared/schemas'
-import type { AuctionSummary } from '#shared/types'
+import type { AuctionSummary, User } from '#shared/types'
 
 const { t } = useI18n()
 const { auctionId, store, ready } = useAuctionPage()
@@ -40,26 +40,42 @@ async function save() {
 
 /* ---------------------------------------------------------------- membri */
 
-const memberForm = reactive<{ email: string; role: (typeof ASSIGNABLE_MEMBER_ROLES)[number] }>({
-  email: '',
+const users = ref<Pick<User, 'id' | 'name' | 'email'>[]>([])
+const memberForm = reactive<{ userId: string; role: (typeof ASSIGNABLE_MEMBER_ROLES)[number] }>({
+  userId: '',
   role: 'EDITOR',
 })
 const memberRoleItems = computed(() =>
   ASSIGNABLE_MEMBER_ROLES.map((role) => ({ label: t(`memberRole.${role}`), value: role }))
 )
+const memberUserItems = computed(() =>
+  users.value
+    .filter((user) => !store.members.some((member) => member.userId === user.id))
+    .map((user) => ({ label: `${user.name} (${user.email})`, value: user.id }))
+)
 const addingMember = ref(false)
 const removingMember = ref<string | null>(null)
+
+async function loadUsers() {
+  try {
+    users.value = await apiFetch<Pick<User, 'id' | 'name' | 'email'>[]>(
+      `/api/auctions/${auctionId}/members`
+    )
+  } catch (err) {
+    toastError(err)
+  }
+}
 
 async function addMember() {
   addingMember.value = true
   try {
     await apiFetch(`/api/auctions/${auctionId}/members`, {
       method: 'POST',
-      body: { email: memberForm.email.trim().toLowerCase(), role: memberForm.role },
+      body: memberForm,
     })
     // La risposta porta la sola membership: l'elenco con nome ed email arriva dal dettaglio.
     await store.load(auctionId, true)
-    memberForm.email = ''
+    memberForm.userId = ''
     toastOk(t('auction.memberAdded'))
   } catch (err) {
     toastError(err)
@@ -80,6 +96,10 @@ async function removeMember(userId: string) {
     removingMember.value = null
   }
 }
+
+onMounted(() => {
+  if (store.isOwner) void loadUsers()
+})
 </script>
 
 <template>
@@ -143,8 +163,14 @@ async function removeMember(userId: string) {
           class="mt-5 flex flex-wrap items-end gap-3"
           @submit="addMember"
         >
-          <UFormField :label="t('auction.memberEmail')" name="email" class="min-w-56 flex-1">
-            <UInput v-model="memberForm.email" type="email" class="w-full" />
+          <UFormField :label="t('auction.memberUser')" name="userId" class="min-w-56 flex-1">
+            <USelectMenu
+              v-model="memberForm.userId"
+              :items="memberUserItems"
+              value-key="value"
+              icon="i-lucide-search"
+              class="w-full"
+            />
           </UFormField>
           <UFormField :label="t('auction.memberRole')" name="role" class="w-40">
             <USelect v-model="memberForm.role" :items="memberRoleItems" class="w-full" />

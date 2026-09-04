@@ -1074,3 +1074,33 @@ resta quella manuale del 2026-08-21, da ripetere a ogni aggiornamento delle CLI.
 - pnpm test: PASS (361 passati, 50 skipped)
 - pnpm format:check: PASS
 - pnpm build: PASS
+
+---
+
+## Feature 43 — Membri asta da utenti esistenti
+
+### Implementato
+
+- Il proprietario dell'asta seleziona un utente già creato tramite `USelectMenu`
+  ricercabile per nome o email; gli utenti già membri non vengono proposti.
+- La route dei membri restituisce al solo OWNER i dati minimi della lista
+  (`id`, nome, email) e l'aggiunta valida il relativo `userId`, non più un'email
+  digitata.
+
+### Modifiche database
+
+- Nessuna.
+
+### Test
+
+- `tests/e2e/auction-flow.spec.ts` verifica creazione dell'utente, presenza nella
+  lista dell'asta e aggiunta come EDITOR; il test si auto-salta senza
+  `DATABASE_URL`.
+
+### Validazione
+
+- pnpm lint: PASS
+- pnpm typecheck: PASS
+- pnpm test: PASS (361 passati, 51 skipped)
+- pnpm format:check: PASS
+- pnpm build: PASS

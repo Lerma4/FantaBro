@@ -72,7 +72,7 @@ I file generati in `server/database/migrations/` vanno committati insieme alla
 feature che ha cambiato lo schema.
 
 Non esiste registrazione pubblica: il primo account si crea con `pnpm db:seed` e
-gli altri utenti li invita un ADMIN.
+gli altri utenti vengono creati da un ADMIN e poi aggiunti dal proprietario dell'asta.
 
 In Docker Compose il seed non parte a ogni rilascio: eseguilo solo al primo
 bootstrap o quando cambi le variabili `SEED_ADMIN_*`.

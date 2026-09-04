@@ -48,30 +48,6 @@ const tierOptions = computed(() => {
   return [...found]
 })
 
-/* ------------------------------------------------- finestra virtuale righe */
-
-/** Altezza di riga fissa: e cio che rende calcolabile la finestra. */
-const ROW_H = 40
-const OVERSCAN = 10
-
-const viewport = ref<HTMLElement | null>(null)
-const scrollTop = ref(0)
-const viewportH = ref(720)
-
-const start = computed(() => Math.max(0, Math.floor(scrollTop.value / ROW_H) - OVERSCAN))
-const end = computed(() =>
-  Math.min(rows.value.length, start.value + Math.ceil(viewportH.value / ROW_H) + OVERSCAN * 2)
-)
-const windowRows = computed(() => rows.value.slice(start.value, end.value))
-const padTop = computed(() => start.value * ROW_H)
-const padBottom = computed(() => Math.max(0, (rows.value.length - end.value) * ROW_H))
-
-function onScroll(event: Event) {
-  scrollTop.value = (event.target as HTMLElement).scrollTop
-}
-
-let sizeObserver: ResizeObserver | undefined
-
 /* ----------------------------------------------------------- selezione 2-6 */
 
 const selected = ref<string[]>([])
@@ -139,31 +115,11 @@ function onKeydown(event: KeyboardEvent) {
 onMounted(() => {
   void fetchRows()
   window.addEventListener('keydown', onKeydown)
-
-  const el = viewport.value
-  if (el) {
-    viewportH.value = el.clientHeight
-    sizeObserver = new ResizeObserver(() => {
-      viewportH.value = el.clientHeight
-    })
-    sizeObserver.observe(el)
-  }
 })
 
 onBeforeUnmount(() => {
   window.removeEventListener('keydown', onKeydown)
-  sizeObserver?.disconnect()
 })
-
-// Cambiare filtro significa una lista nuova: si torna in cima.
-watch(
-  filters,
-  () => {
-    scrollTop.value = 0
-    if (viewport.value) viewport.value.scrollTop = 0
-  },
-  { deep: true }
-)
 
 useAuctionStream(auctionId, () => invalidate())
 
@@ -313,30 +269,23 @@ const emptyListone = computed(
       </div>
 
       <div
-        ref="viewport"
         role="rowgroup"
-        class="listone-virtuale min-h-0 flex-1 overflow-y-auto"
-        @scroll.passive="onScroll"
+        class="min-h-0 flex-1 overflow-y-auto"
       >
-        <div :style="{ height: `${padTop}px` }" aria-hidden="true" />
-
         <ListoneRow
-          v-for="(row, index) in windowRows"
+          v-for="(row, index) in rows"
           :key="row.playerId"
-          v-memo="[row, isSelected(row.playerId), start + index]"
+          v-memo="[row, isSelected(row.playerId), index]"
           :row="row"
           :auction-id="auctionId"
           :selected="isSelected(row.playerId)"
-          :aria-rowindex="start + index + 2"
-          :class="{ 'riga-alt': (start + index) % 2 === 1 }"
-          :style="{ height: `${ROW_H}px` }"
+          :aria-rowindex="index + 2"
+          :class="{ 'riga-alt': index % 2 === 1 }"
           @applied="onApplied"
           @updated="onRowUpdated"
           @removed="onRowRemoved"
           @toggle-select="toggleSelect"
         />
-
-        <div :style="{ height: `${padBottom}px` }" aria-hidden="true" />
 
         <div v-if="loaded && rows.length === 0" class="px-4 py-16 text-center">
           <p class="text-xl leading-tight" style="font-family: var(--font-display)">

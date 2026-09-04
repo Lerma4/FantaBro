@@ -261,14 +261,6 @@
     }
   }
 
-  /*
-    Nella finestra virtuale le righe scorrono, quindi la parita di DOM non
-    coincide con quella dei dati: la rigatura arriva da una classe esplicita.
-  */
-  .listone-virtuale .riga-listone:nth-child(even) {
-    background-color: transparent;
-  }
-
   .riga-listone.riga-alt {
     background-color: color-mix(in oklab, var(--fb-carta-alt) 60%, transparent);
   }

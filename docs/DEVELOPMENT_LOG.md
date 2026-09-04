@@ -1427,3 +1427,31 @@ resta quella manuale del 2026-08-21, da ripetere a ogni aggiornamento delle CLI.
 ### Note
 
 - Versione applicazione: `1.0.2`.
+
+---
+
+## Feature 54 — Scroll stabile del listone
+
+### Implementato
+
+- Il listone renderizza tutte le righe già caricate invece di smontarle e rimontarle durante lo scroll.
+- La virtualizzazione è stata rimossa perché il listone previsto è di circa 600 giocatori e la priorità è uno scroll continuo.
+
+### Modifiche database
+
+- Nessuna.
+
+### Test
+
+- Nessun nuovo test: modifica esclusivamente il rendering della pagina.
+
+### Validazione
+
+- pnpm lint: NON ESEGUITO su richiesta.
+- pnpm typecheck: NON ESEGUITO su richiesta.
+- pnpm test: NON ESEGUITO su richiesta.
+- pnpm format:check: NON ESEGUITO su richiesta.
+
+### Note
+
+- Versione applicazione: `1.0.3`.

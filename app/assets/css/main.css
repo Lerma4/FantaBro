@@ -261,6 +261,11 @@
     }
   }
 
+  /* La parita dei dati non coincide con quella del DOM virtualizzato. */
+  .listone-virtuale .riga-listone:nth-child(even) {
+    background-color: transparent;
+  }
+
   .riga-listone.riga-alt {
     background-color: color-mix(in oklab, var(--fb-carta-alt) 60%, transparent);
   }

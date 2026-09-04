@@ -1455,3 +1455,31 @@ resta quella manuale del 2026-08-21, da ripetere a ogni aggiornamento delle CLI.
 ### Note
 
 - Versione applicazione: `1.0.3`.
+
+---
+
+## Feature 55 — Virtualizzazione bilanciata del listone
+
+### Implementato
+
+- Ripristinata la virtualizzazione delle righe per evitare di montare tutti i giocatori al primo caricamento.
+- Aumentato l'overscan da 10 a 20 righe per rendere lo scroll più stabile.
+
+### Modifiche database
+
+- Nessuna.
+
+### Test
+
+- Non eseguiti su richiesta.
+
+### Validazione
+
+- pnpm lint: NON ESEGUITO su richiesta.
+- pnpm typecheck: NON ESEGUITO su richiesta.
+- pnpm test: NON ESEGUITO su richiesta.
+- pnpm format:check: NON ESEGUITO su richiesta.
+
+### Note
+
+- Versione applicazione: `1.0.4`.

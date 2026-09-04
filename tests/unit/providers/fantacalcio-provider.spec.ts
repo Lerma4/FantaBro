@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   extractFantacalcioPlayerLinks,
   findFantacalcioPlayerLink,
+  readFantacalcioMatchStats,
 } from '../../../server/providers/statistics/fantacalcio'
 
 describe('fantacalcio provider', () => {
@@ -51,5 +52,15 @@ describe('fantacalcio provider', () => {
       id: 5678,
     })
     expect(findFantacalcioPlayerLink(links, 'Dean Huijsen', 'Roma')).toBeUndefined()
+  })
+
+  it('conta le presenze da titolare dalle righe partita', () => {
+    const stats = readFantacalcioMatchStats(`
+      <tr><td class="match"><span class="grade" data-value="6.5"></span><span class="sub-in" data-minute=""></span></td></tr>
+      <tr><td class="match"><span class="grade" data-value="6"></span><span class="sub-in" data-minute="60"></span></td></tr>
+      <tr><td class="match"><span class="grade" data-value="5.5"></span><span class="sub-in" data-minute=""></span></td></tr>
+    `)
+
+    expect(stats).toMatchObject({ teamAppearances: 3, appearances: 3, starts: 2 })
   })
 })

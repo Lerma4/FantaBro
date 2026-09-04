@@ -184,13 +184,19 @@ function onApplied(payload: { state: AuctionState; row: PlayerRow }) {
 
         <dl
           v-if="currentStats"
-          class="mt-3 grid grid-cols-2 gap-x-6 gap-y-4 border-t pt-3 sm:grid-cols-5"
+          class="mt-3 grid grid-cols-2 gap-x-6 gap-y-4 border-t pt-3 sm:grid-cols-6"
           :style="{ borderColor: 'var(--fb-filo-forte)' }"
         >
           <div>
             <dt class="etichetta">{{ t('detail.currentAppearances') }}</dt>
             <dd class="tabellare text-xl leading-none">
               {{ n(currentStats.appearances) }} / {{ n(currentStats.teamAppearances) }}
+            </dd>
+          </div>
+          <div>
+            <dt class="etichetta">{{ t('detail.currentStarts') }}</dt>
+            <dd class="tabellare text-xl leading-none">
+              {{ currentStats.starts === null ? '—' : n(currentStats.starts) }}
             </dd>
           </div>
           <div>
@@ -219,7 +225,7 @@ function onApplied(payload: { state: AuctionState; row: PlayerRow }) {
         </p>
       </section>
 
-      <section class="mt-10">
+      <section v-if="season || !currentStats" class="mt-10">
         <h2 class="text-xl leading-none" style="font-family: var(--font-display)">
           {{
             season

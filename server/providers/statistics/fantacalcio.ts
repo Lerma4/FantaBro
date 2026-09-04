@@ -68,26 +68,30 @@ function readAverageRating(html: string) {
   return Number.isFinite(value) ? value : null
 }
 
-function readMatchStats(html: string) {
+export function readFantacalcioMatchStats(html: string) {
   const rows = [...html.matchAll(/<tr>([\s\S]*?)<\/tr>/gi)].flatMap((match) =>
     match[1] ? [match[1]] : []
   )
   const matches = rows.filter((row) => /class=["'][^"']*match\b/i.test(row))
   let appearances = 0
+  let starts = 0
   let minutes = 0
 
   for (const row of matches) {
     const grade = row.match(/class=["']grade["'][^>]*data-value=["']([^"']*)/i)?.[1]
     if (!grade) continue
     appearances += 1
-    const entered =
-      Number(row.match(/class=["']sub-in["'][^>]*data-minute=["']([^"']*)/i)?.[1]) || 0
+    const entered = row.match(
+      /class=["']sub-in["'][^>]*data-minute=["']([^"']*)/i
+    )?.[1]
+    if (!entered) starts += 1
+    const enteredMinute = Number(entered) || 0
     const exited =
       Number(row.match(/class=["']sub-out["'][^>]*data-minute=["']([^"']*)/i)?.[1]) || 90
-    minutes += Math.max(0, exited - entered)
+    minutes += Math.max(0, exited - enteredMinute)
   }
 
-  return { teamAppearances: matches.length, appearances, minutes }
+  return { teamAppearances: matches.length, appearances, starts, minutes }
 }
 
 export function extractFantacalcioPlayerLinks(html: string): FantacalcioPlayerLink[] {
@@ -170,7 +174,7 @@ export async function syncFantacalcioStats(input: {
     const response = await fetch(link.url, { signal: AbortSignal.timeout(5_000) })
     if (!response.ok) return null
     const html = await response.text()
-    const matchStats = readMatchStats(html)
+    const matchStats = readFantacalcioMatchStats(html)
     const appearances = readStat(html, 'Partite a voto')
     const goals = readStat(html, 'Gol')
     const assists = readStat(html, 'Assist')
@@ -186,6 +190,7 @@ export async function syncFantacalcioStats(input: {
     const value: PlayerCurrentStats = {
       season: input.season,
       appearances,
+      starts: matchStats.starts,
       teamAppearances: matchStats.teamAppearances,
       minutes: matchStats.minutes,
       averageRating: readAverageRating(html),

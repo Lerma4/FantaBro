@@ -38,6 +38,7 @@ export interface PlayerRow {
 export interface PlayerCurrentStats {
   season: string
   appearances: number
+  starts: number | null
   teamAppearances: number
   minutes: number
   averageRating: number | null

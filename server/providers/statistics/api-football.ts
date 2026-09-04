@@ -102,6 +102,7 @@ async function loadCurrentSeasonStats(
   return {
     season: input.season,
     appearances: numberOrZero(playerStats.games.appearences),
+    starts: null,
     teamAppearances,
     minutes: numberOrZero(playerStats.games.minutes),
     averageRating: nullableNumber(playerStats.games.rating),

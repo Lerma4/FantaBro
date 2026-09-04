@@ -1395,3 +1395,35 @@ resta quella manuale del 2026-08-21, da ripetere a ogni aggiornamento delle CLI.
 ### Note
 
 - La cache è in memoria del processo; con più repliche servirà una cache condivisa.
+
+---
+
+## Feature 53 — Presenze da titolare nelle statistiche correnti
+
+### Implementato
+
+- Il parser Fantacalcio conta anche le presenze iniziate da titolare usando il minuto di ingresso.
+- La pagina dettaglio mostra il numero `Da titolare` e nasconde il messaggio della stagione precedente
+  quando sono disponibili statistiche correnti, anche dalla cache.
+- API-Football lascia il dato non disponibile perché il provider non espone il dettaglio delle partenze.
+
+### Modifiche database
+
+- Nessuna.
+
+### Test
+
+- Aggiunto test unitario per distinguere titolari e subentrati.
+
+### Validazione
+
+- pnpm lint: PASS
+- pnpm typecheck: PASS
+- pnpm vitest run tests/unit/providers/fantacalcio-provider.spec.ts: PASS (3 test)
+- pnpm format:check: NON ESEGUITO
+- pnpm test: NON ESEGUITO
+- pnpm build: NON ESEGUITO
+
+### Note
+
+- Versione applicazione: `1.0.2`.

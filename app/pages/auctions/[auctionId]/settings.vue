@@ -97,9 +97,13 @@ async function removeMember(userId: string) {
   }
 }
 
-onMounted(() => {
-  if (store.isOwner) void loadUsers()
-})
+watch(
+  () => [ready.value, store.isOwner],
+  ([isReady, isOwner]) => {
+    if (isReady && isOwner) void loadUsers()
+  },
+  { immediate: true }
+)
 </script>
 
 <template>
@@ -160,10 +164,10 @@ onMounted(() => {
           v-if="store.isOwner"
           :schema="addMemberSchema"
           :state="memberForm"
-          class="mt-5 flex flex-wrap items-end gap-3"
+          class="mt-5 grid gap-3 sm:grid-cols-[minmax(0,1fr)_10rem_auto] sm:items-end"
           @submit="addMember"
         >
-          <UFormField :label="t('auction.memberUser')" name="userId" class="min-w-56 flex-1">
+          <UFormField :label="t('auction.memberUser')" name="userId" class="min-w-0">
             <USelectMenu
               v-model="memberForm.userId"
               :items="memberUserItems"
@@ -172,10 +176,15 @@ onMounted(() => {
               class="w-full"
             />
           </UFormField>
-          <UFormField :label="t('auction.memberRole')" name="role" class="w-40">
+          <UFormField :label="t('auction.memberRole')" name="role" class="min-w-0">
             <USelect v-model="memberForm.role" :items="memberRoleItems" class="w-full" />
           </UFormField>
-          <UButton type="submit" icon="i-lucide-user-plus" :loading="addingMember">
+          <UButton
+            type="submit"
+            icon="i-lucide-user-plus"
+            :loading="addingMember"
+            class="w-full sm:w-auto"
+          >
             {{ t('auction.addMember') }}
           </UButton>
         </UForm>

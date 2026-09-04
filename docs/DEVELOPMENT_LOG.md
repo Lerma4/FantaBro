@@ -1104,3 +1104,27 @@ resta quella manuale del 2026-08-21, da ripetere a ogni aggiornamento delle CLI.
 - pnpm test: PASS (361 passati, 51 skipped)
 - pnpm format:check: PASS
 - pnpm build: PASS
+
+---
+
+## Feature 44 — Caricamento e layout membri asta
+
+### Implementato
+
+- Il caricamento degli utenti esistenti ora attende che l'asta sia pronta e che
+  l'utente corrente sia OWNER, evitando la corsa tra gli hook di montaggio.
+- Il form usa una griglia responsive: utente ricercabile, ruolo a larghezza
+  stabile e pulsante su colonne separate; su mobile passa a una colonna.
+- Aggiunta la traduzione italiana di `auction.addMember`.
+
+### Modifiche database
+
+- Nessuna.
+
+### Validazione
+
+- pnpm lint: PASS
+- pnpm typecheck: PASS
+- pnpm test: PASS (361 passati, 51 skipped)
+- pnpm format:check: PASS
+- pnpm build: PASS

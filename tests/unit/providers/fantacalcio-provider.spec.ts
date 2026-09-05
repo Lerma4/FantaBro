@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   extractFantacalcioPlayerLinks,
   findFantacalcioPlayerLink,
+  readFantacalcioAdvice,
   readFantacalcioMatchStats,
 } from '../../../server/providers/statistics/fantacalcio'
 
@@ -62,5 +63,26 @@ describe('fantacalcio provider', () => {
     `)
 
     expect(stats).toMatchObject({ teamAppearances: 3, appearances: 3, starts: 2 })
+  })
+
+  it('estrae pro e contro e decodifica il testo HTML', () => {
+    expect(
+      readFantacalcioAdvice(`
+        <section id="player-description">
+          <li class="li2">&nbsp;<strong>PRO</strong>: Top di ruolo.<br>Costante.</li>
+          <li class="li2">&nbsp;<strong>CONTRO</strong>: Il prezzo sar&agrave; alto.</li>
+        </section>
+      `)
+    ).toEqual({ pros: 'Top di ruolo. Costante.', cons: 'Il prezzo sarà alto.' })
+  })
+
+  it('restituisce null per pro e contro assenti o vuoti', () => {
+    expect(
+      readFantacalcioAdvice(`
+        <li><strong>PRO</strong>: &nbsp;</li>
+        <li><strong>CONTRO</strong>: <span></span></li>
+        <li><strong>ALTRO</strong>: testo</li>
+      `)
+    ).toEqual({ pros: null, cons: null })
   })
 })

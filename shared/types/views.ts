@@ -44,6 +44,8 @@ export interface PlayerCurrentStats {
   averageRating: number | null
   goals: number
   assists: number
+  pros: string | null
+  cons: string | null
   provider: 'api-football' | 'fantacalcio'
   updatedAt: string
 }

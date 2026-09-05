@@ -1483,3 +1483,34 @@ resta quella manuale del 2026-08-21, da ripetere a ogni aggiornamento delle CLI.
 ### Note
 
 - Versione applicazione: `1.0.4`.
+
+---
+
+## Feature 56 — Pro e contro nelle statistiche correnti
+
+### Implementato
+
+- Il provider Fantacalcio estrae dal profilo live i testi `PRO` e `CONTRO`, decodifica le entità HTML e li normalizza come valori nullable.
+- La scheda giocatore mostra le sezioni solo quando il testo esiste davvero; pro e contro vuoti o assenti non producono card vuote.
+- Il provider API-Football restituisce esplicitamente `null` per mantenere il contratto condiviso coerente.
+
+### Modifiche database
+
+- Nessuna.
+
+### Test
+
+- Aggiunti test per estrazione live-like, entità HTML e casi null/vuoti.
+- Verificata anche una fetch reale della pagina Fantacalcio di Malen: entrambi i testi sono stati estratti correttamente.
+
+### Validazione
+
+- pnpm lint: PASS
+- pnpm typecheck: PASS
+- pnpm test: PASS (369 passati, 52 saltati)
+- pnpm format:check: PASS
+- pnpm build: NON RICHIESTO
+
+### Note
+
+- Versione applicazione: `1.0.5`.

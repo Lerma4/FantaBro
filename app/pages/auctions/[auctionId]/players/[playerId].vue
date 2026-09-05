@@ -216,6 +216,25 @@ function onApplied(payload: { state: AuctionState; row: PlayerRow }) {
             <dd class="tabellare text-xl leading-none">{{ n(currentStats.assists) }}</dd>
           </div>
         </dl>
+        <div
+          v-if="currentStats && (currentStats.pros || currentStats.cons)"
+          class="mt-6 grid gap-3 sm:grid-cols-2"
+        >
+          <article
+            v-if="currentStats.pros"
+            class="border-l-2 border-verde-600 bg-verde-50/50 px-4 py-3 dark:bg-verde-950/20"
+          >
+            <h3 class="etichetta text-verde-700 dark:text-verde-300">{{ t('detail.pros') }}</h3>
+            <p class="mt-1 text-sm leading-relaxed">{{ currentStats.pros }}</p>
+          </article>
+          <article
+            v-if="currentStats.cons"
+            class="border-l-2 border-granata-600 bg-granata-50/50 px-4 py-3 dark:bg-granata-950/20"
+          >
+            <h3 class="etichetta text-granata-700 dark:text-granata-300">{{ t('detail.cons') }}</h3>
+            <p class="mt-1 text-sm leading-relaxed">{{ currentStats.cons }}</p>
+          </article>
+        </div>
         <p
           v-else
           class="mt-3 border-t pt-3 text-sm opacity-70"

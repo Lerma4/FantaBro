@@ -108,6 +108,8 @@ async function loadCurrentSeasonStats(
     averageRating: nullableNumber(playerStats.games.rating),
     goals: numberOrZero(playerStats.goals.total),
     assists: numberOrZero(playerStats.goals.assists),
+    pros: null,
+    cons: null,
     provider: 'api-football',
     updatedAt: new Date().toISOString(),
   }

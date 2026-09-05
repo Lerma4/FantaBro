@@ -39,11 +39,41 @@ function sameTeam(left: string, right: string) {
 
 function decodeHtml(value: string) {
   return value
+    .replace(/&#x([0-9a-f]+);?/gi, (_, hex: string) =>
+      String.fromCodePoint(Number.parseInt(hex, 16))
+    )
+    .replace(/&#([0-9]+);?/g, (_, decimal: string) => String.fromCodePoint(Number(decimal)))
     .replace(/&amp;/g, '&')
     .replace(/&#39;|&apos;/g, "'")
     .replace(/&quot;/g, '"')
     .replace(/&nbsp;/g, ' ')
+    .replace(/&agrave;/g, 'à')
+    .replace(/&egrave;/g, 'è')
+    .replace(/&igrave;/g, 'ì')
+    .replace(/&ograve;/g, 'ò')
+    .replace(/&ugrave;/g, 'ù')
     .trim()
+}
+
+function plainText(value: string) {
+  return decodeHtml(value.replace(/<[^>]*>/g, ' '))
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+export function readFantacalcioAdvice(html: string) {
+  const advice = { pros: null as string | null, cons: null as string | null }
+  const pattern =
+    /<li\b[^>]*>[\s\S]*?<strong\b[^>]*>\s*(PRO|CONTRO)\s*<\/strong>\s*:?([\s\S]*?)<\/li>/gi
+
+  for (const match of html.matchAll(pattern)) {
+    const text = plainText(match[2] ?? '')
+    if (!text) continue
+    if (match[1]?.toUpperCase() === 'PRO') advice.pros = text
+    if (match[1]?.toUpperCase() === 'CONTRO') advice.cons = text
+  }
+
+  return advice
 }
 
 function readStat(html: string, label: string) {
@@ -81,9 +111,7 @@ export function readFantacalcioMatchStats(html: string) {
     const grade = row.match(/class=["']grade["'][^>]*data-value=["']([^"']*)/i)?.[1]
     if (!grade) continue
     appearances += 1
-    const entered = row.match(
-      /class=["']sub-in["'][^>]*data-minute=["']([^"']*)/i
-    )?.[1]
+    const entered = row.match(/class=["']sub-in["'][^>]*data-minute=["']([^"']*)/i)?.[1]
     if (!entered) starts += 1
     const enteredMinute = Number(entered) || 0
     const exited =
@@ -175,6 +203,7 @@ export async function syncFantacalcioStats(input: {
     if (!response.ok) return null
     const html = await response.text()
     const matchStats = readFantacalcioMatchStats(html)
+    const advice = readFantacalcioAdvice(html)
     const appearances = readStat(html, 'Partite a voto')
     const goals = readStat(html, 'Gol')
     const assists = readStat(html, 'Assist')
@@ -196,6 +225,8 @@ export async function syncFantacalcioStats(input: {
       averageRating: readAverageRating(html),
       goals,
       assists,
+      pros: advice.pros,
+      cons: advice.cons,
       provider: 'fantacalcio',
       updatedAt: new Date().toISOString(),
     }
